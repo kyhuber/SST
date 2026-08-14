@@ -50,6 +50,27 @@ Then open http://localhost:5173 and enter the passphrase from `.dev.vars`.
 To reset local state — stored tokens and the cached snapshot — delete
 `worker/.wrangler/state`.
 
+## Tests
+
+```bash
+cd worker && npm test
+```
+
+They run inside workerd — the same runtime that serves the deployed Worker —
+rather than against a stand-in for the Durable Object storage API. They need no
+credentials and make no network calls; outbound `fetch` is stubbed, so nothing
+reaches Intuit.
+
+What they cover is the OAuth refresh path in `worker/src/tokens.ts`, because it
+is the only code here that can disconnect the dashboard in a way that requires a
+human to sign in to QuickBooks and re-consent. Three of those cases cannot be
+reached by running against the real Intuit at all: you cannot force
+`invalid_grant` without revoking the live grant, you cannot make Intuit
+unreachable on demand, and nothing in normal operation puts two refreshes in
+flight at the same time.
+
+`npm run typecheck` checks `src/` and `test/` both.
+
 ## Connecting QuickBooks for real
 
 ### 1. Create the Intuit app

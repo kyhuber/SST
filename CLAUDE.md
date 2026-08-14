@@ -84,10 +84,37 @@ Verified against live infrastructure: OAuth seeding, live account reads, the
 snapshot cache round-trip, per-account degradation with total suppression, the
 401 boundary, and CORS from the real Pages origin.
 
-**Not yet verified: the token refresh path.** Access tokens last one hour. The
-single-flight refresh in `worker/src/tokens.ts` is the least-exercised code in
-the project. If the dashboard ever reports "needs to be reconnected"
-unexpectedly, look there first.
+**The token refresh path is verified by tests, not yet against live Intuit.**
+The distinction matters. `worker/test/tokens.test.ts` runs in workerd and covers
+refresh-token rotation, `invalid_grant`, an unreachable Intuit, and the
+single-flight guard — all with outbound `fetch` stubbed. What no test covers is
+whether Intuit's real response matches what the tests feed in. That is what the
+hourly keep-alive cron is for; check `/admin/status?k=…` for a `refreshed` event.
+
+If the dashboard ever reports "needs to be reconnected" unexpectedly, look at
+that event log first, then at `worker/src/tokens.ts`.
+
+Two properties there are load-bearing and easy to break by accident, so the
+tests were checked by deliberately breaking each one and confirming they caught
+it:
+
+- **The refresh token must be re-stored on every refresh.** Intuit rotates it
+  and expires the old value immediately. Persisting only the access token leaves
+  the connection working until the next refresh, then breaks it permanently.
+- **The single-flight guard is not defensive decoration.** Removing it produces
+  two concurrent refreshes, which is the case Intuit answers with
+  `invalid_grant` — turning a page load into a revoked connection.
+
+## Running the tests
+
+```
+cd worker && npm test          # vitest run, inside workerd
+cd worker && npm run typecheck  # src and test both
+```
+
+Tests use `@cloudflare/vitest-pool-workers`, which needs the `nodejs_compat`
+compatibility flag. It is set in `vitest.config.ts` only — the deployed Worker
+does not need it, and `wrangler.toml` is deliberately left alone.
 
 ## Phase status
 
