@@ -67,3 +67,23 @@ QBO_REDIRECT_URI = "https://hpic-sst.kyhuber-ft.workers.dev/oauth/callback"
 # Origin of the GitHub Pages frontend, for CORS. Narrow this from a wildcard
 # before the dashboard is shared with the board.
 ALLOWED_ORIGIN = "https://kyhuber.github.io"
+
+# --- Little Green Light (Phase 2) ---
+#
+# "fixture" serves recorded data and never calls LGL. Switch to "live" once
+# LGL_API_KEY is set:
+#
+#   printf '%s' "<key>" | npx wrangler secret put LGL_API_KEY
+#
+# Issue a fresh key scoped to this tool rather than reusing the membership
+# lookup tool's key, so either can be revoked without breaking the other.
+LGL_MODE = "fixture"
+
+# Which LGL campaigns and gift categories hold grant activity, comma-separated.
+# Left unset deliberately until HPIC's real IDs are confirmed: LGL holds every
+# appeal ask and pledge, so without a scope these figures cover individual
+# donor activity too. The dashboard says so on screen rather than implying the
+# numbers are grants-only.
+#
+# LGL_GRANT_CAMPAIGN_IDS = ""
+# LGL_GRANT_GIFT_CATEGORY_IDS = ""

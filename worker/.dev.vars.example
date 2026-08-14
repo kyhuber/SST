@@ -24,3 +24,8 @@ ALLOWED_ORIGIN=http://localhost:5173
 # A mistake in this direction costs a developer recorded data; the reverse
 # would deploy fixture data to the board.
 QBO_MODE=fixture
+
+# Little Green Light. Unset means fixture mode, so no key is needed to run the
+# grant funnel locally. Set both to read a real LGL account.
+# LGL_MODE=live
+# LGL_API_KEY=

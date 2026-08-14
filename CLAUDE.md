@@ -48,8 +48,50 @@ credentials.
   `not_connected` and `needs_reauth` are distinct and both surface to the UI.
 - **Balances are the QuickBooks *book* balance**, labeled as such. The bank-feed
   balance is not exposed by the API at all.
-- Coming in Phase 2: never sum reimbursable and non-reimbursable awards into one
-  "available" figure, and render unknown reimbursable status as unknown.
+- **Never sum reimbursable and non-reimbursable awards into one "available"
+  figure.** `splitByReimbursable` in `worker/src/lgl.ts` returns three separate
+  buckets and nothing adds them. A cost-reimbursement award requires spending
+  first and invoicing after, so it is not cash available to start work.
+- **Reimbursable status is `unknown` whenever the custom field is absent or
+  unparseable**, never a default. Every HPIC record is in that state today.
+- **A funnel total renders only from a complete read.** If paging stops at the
+  cap, the stage reports unavailable rather than a partial sum — the same rule
+  as total cash.
+- **Record counts appear beside every grant total.** LGL is a partial picture
+  during the prototype; a missing grant should show as a count discrepancy.
+
+## Little Green Light — what the API actually exposes
+
+Verified 2026-08-14 against `api.littlegreenlight.com/api-docs/static.html`.
+**The build spec describes objects that LGL's REST API v1 does not have**, so
+read this before touching `worker/src/lgl.ts`:
+
+| Spec says | API actually has |
+| --- | --- |
+| `Goal` object | No `/goals` endpoint. A grant application is an **`appeal_request`** (`ask_amount`, `status`, `raised`, `custom_fields`, `custom_attrs`). |
+| `Pledge` object | No `/pledges` endpoint. An award is a **gift whose `gift_type` is "Pledge"** — the stock gift category "Grant" sits under exactly that type. |
+| Pledge `amount due` | **Does not exist.** The strings `amount_due` and `balance` appear nowhere in the API docs. |
+
+That last row is the blocker. **Received and Outstanding are both defined in
+terms of amount due, so both render "Not shown" with the reason attached.** The
+spec forbids recomputing amount due by summing payment gifts (LGL maintains the
+real figure; recomputing drifts), and there is no field to read instead. This is
+deliberate, not unfinished — do not "fix" it by summing `parent_gift_id`
+children without deciding that question first. Options are to ask LGL support
+whether a balance field is reachable, or to accept a derived figure that is
+labeled as derived.
+
+Two more things that matter:
+
+- **There is no global `appeal_requests` list endpoint.** Applications are read
+  by enumerating `/appeals`, then `/appeals/{id}/appeal_requests` for each.
+- **Scope is not optional for correctness.** LGL holds every donor ask and
+  pledge. `LGL_GRANT_CAMPAIGN_IDS` / `LGL_GRANT_GIFT_CATEGORY_IDS` narrow the
+  reads; unset, the snapshot sets `unscoped: true` and the UI says the figures
+  are not grants-only rather than implying they are.
+
+The gift type ID for "Pledge" is resolved by name at runtime, not hardcoded — a
+wrong ID returns zero awards, which looks identical to HPIC having no grants.
 
 ## Shell
 
@@ -125,6 +167,13 @@ cd worker && npm test          # vitest run, inside workerd
 cd worker && npm run typecheck  # src and test both
 ```
 
+`test/tokens.test.ts` covers the OAuth refresh path. `test/lgl.test.ts` covers
+the grant funnel, and what it pins is mostly the places the code is supposed to
+*refuse* to produce a number: the amount-due gap, unknown reimbursable status,
+an incomplete page walk, and a rejected API key. Both of the load-bearing
+properties there were checked by deliberately breaking them and confirming the
+tests caught it.
+
 Tests use `@cloudflare/vitest-pool-workers`, which needs the `nodejs_compat`
 compatibility flag. It is set in `vitest.config.ts` only — the deployed Worker
 does not need it, and `wrangler.toml` is deliberately left alone.
@@ -132,10 +181,14 @@ does not need it, and `wrangler.toml` is deliberately left alone.
 ## Phase status
 
 - **Phase 1 — funds snapshot: done**, against sandbox data.
-- **Phase 2 — LGL grant funnel: not started.** Independent of QuickBooks
-  production keys, so it can proceed in parallel with that approval.
+- **Phase 2 — LGL grant funnel: thin slice done, fixture-only.** Worker client,
+  `GET /api/grants`, fixtures, tests, and UI are in. Applied and Pledged compute;
+  Received and Outstanding are structurally unavailable (see above). Still to do:
+  a real `LGL_API_KEY` and a live read, the campaign/fund restriction breakdown,
+  and the goal/pledge detail list.
 - **Phase 3 — phase readiness: not started.** Needs the Dry-in target cost from
-  the general contractor.
+  the general contractor. Note that "spendable excludes unreceived reimbursable
+  awards" depends on the outstanding figure, which is currently unavailable.
 
 ## Context
 

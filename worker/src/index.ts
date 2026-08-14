@@ -6,10 +6,12 @@
  * financial data; everything it shows comes from here, and only after the
  * shared passphrase checks out. Someone who finds the Pages URL sees nothing.
  *
- * Phase 1 serves one endpoint of substance: GET /api/funds.
+ * Two endpoints of substance: GET /api/funds (cash, from QuickBooks) and
+ * GET /api/grants (the grant funnel, from Little Green Light).
  */
 
 import { AUTH_HEADER, authorize, checkPassphrase } from "./auth";
+import { getGrants } from "./lgl";
 import { handleCallback, handleStart } from "./oauth";
 import { getFunds, listAssetAccounts } from "./qbo";
 import { TokenStore } from "./tokens";
@@ -95,6 +97,17 @@ export default {
           return json({ error: "Not authorized" }, env, 401);
         }
         return handleFunds(env);
+      }
+
+      // Phase 2. Behind the same passphrase, and read-only like everything
+      // else. No snapshot cache yet: grant records change on a human timescale
+      // and the read is cheap, so caching would add a staleness question with
+      // nothing to show for it.
+      case "/api/grants": {
+        if (!authorize(request, env)) {
+          return json({ error: "Not authorized" }, env, 401);
+        }
+        return json(await getGrants(env), env);
       }
 
       // Setup tool, not part of the board dashboard: lists chart-of-accounts
