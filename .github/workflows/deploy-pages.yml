@@ -1,0 +1,63 @@
+# Builds the dashboard shell and publishes it to GitHub Pages.
+#
+# Only the frontend is deployed here. The Worker is deployed separately with
+# `wrangler deploy`, deliberately: it holds every credential, and its release
+# should be a decision rather than a side effect of pushing to main.
+
+name: Deploy dashboard to Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - ".github/workflows/deploy-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it; a half-published site
+# is worse than a slightly stale one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+
+      # Not a secret: it is the public address of the Worker, and the Worker
+      # returns nothing without the passphrase.
+      - run: npm run build
+        env:
+          VITE_WORKER_URL: https://hpic-sst.kyhuber-ft.workers.dev
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

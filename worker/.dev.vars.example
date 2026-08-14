@@ -1,0 +1,13 @@
+# Local development secrets for `wrangler dev`.
+# Copy to `.dev.vars` (git-ignored) and fill in. Never commit the real file.
+#
+# In fixture mode only ACCESS_PASSPHRASE is used — the Intuit values are not
+# read until QBO_MODE=live.
+
+ACCESS_PASSPHRASE=local-dev-passphrase
+QBO_CLIENT_ID=
+QBO_CLIENT_SECRET=
+
+# Values here override [vars] in wrangler.toml during `wrangler dev`, so the
+# Vite dev server's origin can be allowed locally without loosening production.
+ALLOWED_ORIGIN=http://localhost:5173

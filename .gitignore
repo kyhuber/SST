@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.wrangler/
+
+# Credentials never enter the repository.
+.dev.vars
+.env
+.env.local
+.env.*.local

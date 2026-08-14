@@ -1,0 +1,173 @@
+/*
+ * Desktop layout. This is shown on a laptop at board meetings; mobile is
+ * explicitly not a priority, so there are no breakpoints to maintain.
+ */
+
+:root {
+  --ink: #1c2321;
+  --muted: #5f6b68;
+  --line: #dfe3e1;
+  --warn: #8a6100;
+  --warn-bg: #fff6e0;
+  --error: #8f2419;
+  --error-bg: #fdecea;
+  --unavailable: #7a8481;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: #f7f8f8;
+}
+
+h1 {
+  font-size: 1.75rem;
+  margin: 0 0 0.25rem;
+}
+
+h2 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.muted {
+  color: var(--muted);
+  margin: 0;
+}
+
+/* --- Passphrase gate --- */
+
+.gate {
+  max-width: 24rem;
+  margin: 6rem auto;
+  padding: 2rem;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.gate form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.gate label {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+input,
+button {
+  font: inherit;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+
+button {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+  cursor: pointer;
+}
+
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--muted);
+  text-decoration: underline;
+}
+
+/* --- Dashboard --- */
+
+.dashboard {
+  max-width: 60rem;
+  margin: 3rem auto;
+  padding: 0 1.5rem;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin: 2rem 0;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
+.card-total {
+  border-color: var(--ink);
+}
+
+.amount {
+  font-size: 1.9rem;
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+.amount.unavailable {
+  color: var(--unavailable);
+  font-size: 1.25rem;
+}
+
+.note {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0.6rem 0 0;
+}
+
+.banner {
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin: 1.5rem 0 0;
+  font-size: 0.95rem;
+}
+
+.banner-warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.banner-error {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+.error {
+  color: var(--error);
+}
+
+footer {
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+footer p {
+  margin: 0 0 0.5rem;
+}
+
+code {
+  background: #eceeed;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  font-size: 0.9em;
+}

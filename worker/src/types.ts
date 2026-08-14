@@ -5,6 +5,8 @@
  * phase readiness arrive in Phases 2 and 3.
  */
 
+import type { TokenStore } from "./tokens";
+
 export interface Env {
   // Secrets — set with `wrangler secret put`, never in wrangler.toml.
   QBO_CLIENT_ID: string;
@@ -25,7 +27,7 @@ export interface Env {
   // Origin of the GitHub Pages frontend, for CORS.
   ALLOWED_ORIGIN?: string;
 
-  TOKEN_STORE: DurableObjectNamespace;
+  TOKEN_STORE: DurableObjectNamespace<TokenStore>;
 }
 
 /** Why an account has no number, when it has no number. */
@@ -57,7 +59,7 @@ export interface FundsSnapshot {
   /** Whether this response came from the Worker's cache, and how old it is. */
   cached: boolean;
   source: string;
-  connection: "ok" | "needs_reauth" | "fixture";
+  connection: "ok" | "needs_reauth" | "not_connected" | "fixture";
 }
 
 /** Token payload as returned by Intuit's token endpoint. */

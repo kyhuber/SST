@@ -1,0 +1,53 @@
+# HPIC single source of truth — Worker config.
+#
+# This is a standalone Worker, deliberately separate from the membership lookup
+# tool. It shares no secrets with it: the membership tool's APPS_SCRIPT_URL,
+# VOLUNTEER_TOKEN, and LGL_API_KEY have no role here. (An LGL key arrives in
+# Phase 2, and it should be a freshly issued one scoped to this tool.)
+#
+# Secrets are NOT set here. Use `wrangler secret put`:
+#   wrangler secret put QBO_CLIENT_ID
+#   wrangler secret put QBO_CLIENT_SECRET
+#   wrangler secret put ACCESS_PASSPHRASE
+
+name = "hpic-sst"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+account_id = "44727137a1b418b1857ce737742b57f7"
+workers_dev = true
+
+# Sole custodian of the QuickBooks OAuth tokens. See src/tokens.ts for why this
+# cannot be an environment variable.
+[[durable_objects.bindings]]
+name = "TOKEN_STORE"
+class_name = "TokenStore"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["TokenStore"]
+
+[vars]
+# "sandbox" or "production" — selects the QuickBooks API base URL.
+QBO_ENV = "sandbox"
+
+# "fixture" serves recorded data and never calls Intuit. Switch to "live" once
+# the developer app, sandbox company, and OAuth seeding are in place.
+QBO_MODE = "live"
+
+# QuickBooks company ID. The /oauth/callback page prints this after consent.
+QBO_REALM_ID = "9341457717421687"
+
+# Must match the redirect URI registered on the Intuit app EXACTLY — scheme,
+# casing, and trailing slash included.
+QBO_REDIRECT_URI = "https://hpic-sst.kyhuber-ft.workers.dev/oauth/callback"
+
+# Account mapping. Unconfirmed with the treasurer as of this writing; leaving
+# these empty renders "not configured" on the panel rather than failing.
+# Sandbox mapping: 35 = "Checking", 36 = "Savings". Replace both with the real
+# IDs from /admin/accounts when the production company is connected.
+QBO_OPERATING_ACCOUNT_ID = "35"
+QBO_REBUILD_FUND_ACCOUNT_ID = "36"
+
+# Origin of the GitHub Pages frontend, for CORS. Narrow this from a wildcard
+# before the dashboard is shared with the board.
+ALLOWED_ORIGIN = "https://kyhuber.github.io"
