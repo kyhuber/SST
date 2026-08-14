@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy Policy — HPIC Financial Snapshot</title>
+    <style>
+      body { font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1c2321;
+             max-width: 42rem; margin: 3rem auto; padding: 0 1.25rem; }
+      h1 { font-size: 1.6rem; margin-bottom: 0.25rem; }
+      h2 { font-size: 1.05rem; margin-top: 2rem; }
+      .updated { color: #5f6b68; margin-top: 0; }
+      ul { padding-left: 1.25rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Privacy Policy</h1>
+    <p class="updated">HPIC Financial Snapshot · Last updated 14 August 2026</p>
+
+    <p>
+      HPIC Financial Snapshot is an internal dashboard used by the board of the Highland Park
+      Improvement Club (HPIC), a volunteer-run nonprofit in Seattle, Washington. It shows the
+      organization's own financial position in one place. It is not a public website, not a
+      commercial product, and is not offered to anyone outside HPIC.
+    </p>
+
+    <h2>What data the tool accesses</h2>
+    <p>
+      The tool reads HPIC's own records from services HPIC already uses:
+    </p>
+    <ul>
+      <li>
+        <strong>QuickBooks Online</strong> — current balances of specific HPIC bank accounts,
+        read through the QuickBooks Online Accounting API.
+      </li>
+      <li>
+        <strong>Little Green Light</strong> — HPIC's grant records, including amounts applied
+        for, awarded, received, and outstanding. (Planned; not yet enabled.)
+      </li>
+    </ul>
+    <p>
+      It accesses only HPIC's own organizational data. It does not access data belonging to any
+      other QuickBooks company.
+    </p>
+
+    <h2>The tool is read-only</h2>
+    <p>
+      The tool never creates, modifies, or deletes anything in QuickBooks Online, Little Green
+      Light, or any bank. It only reads. It does not move money and cannot initiate any
+      transaction.
+    </p>
+
+    <h2>Personal information</h2>
+    <p>
+      The tool is not designed to collect or display personal information. It reads account
+      balances and grant totals, not individual donor records, and it does not build profiles of
+      any person. It does not use cookies, analytics, advertising, or third-party trackers of any
+      kind.
+    </p>
+
+    <h2>How data is handled</h2>
+    <ul>
+      <li>
+        Financial figures are fetched on demand and held briefly in server memory. A short-lived
+        cache (approximately fifteen minutes) exists so the dashboard does not call QuickBooks on
+        every page load.
+      </li>
+      <li>
+        Authorization tokens for QuickBooks Online are stored server-side, encrypted at rest by
+        the hosting provider, and are never sent to the browser.
+      </li>
+      <li>
+        No financial data is stored in the web page itself, in the public code repository, or in
+        any database or spreadsheet.
+      </li>
+      <li>
+        Access requires a shared passphrase known only to authorized HPIC board members.
+      </li>
+    </ul>
+
+    <h2>Who data is shared with</h2>
+    <p>
+      No one. HPIC's data is not sold, rented, shared, or disclosed to any third party. It is not
+      used for marketing, aggregated into any dataset, or used to derive insights across
+      organizations. The only parties involved are HPIC and the service providers HPIC has
+      already chosen: Intuit (QuickBooks Online), Little Green Light, Cloudflare (hosting), and
+      GitHub (hosting the static page).
+    </p>
+
+    <h2>Disconnecting</h2>
+    <p>
+      An HPIC administrator can revoke the tool's access at any time from within QuickBooks
+      Online, under Apps &rarr; My Apps &rarr; Disconnect. Access ends immediately, and the
+      dashboard will show that it is no longer connected. Stored authorization tokens become
+      invalid at that point.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      Questions about this policy or the tool can be directed to the HPIC board at
+      <a href="https://hpic1919.org">hpic1919.org</a>.
+    </p>
+  </body>
+</html>

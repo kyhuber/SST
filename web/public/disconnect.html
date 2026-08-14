@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Disconnect QuickBooks — HPIC Financial Snapshot</title>
+    <style>
+      body { font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1c2321;
+             max-width: 42rem; margin: 3rem auto; padding: 0 1.25rem; }
+      h1 { font-size: 1.6rem; }
+      h2 { font-size: 1.05rem; margin-top: 2rem; }
+      ol { padding-left: 1.25rem; }
+      code { background: #f1f1f1; padding: 0.1em 0.35em; border-radius: 3px; }
+    </style>
+  </head>
+  <body>
+    <h1>Disconnect QuickBooks</h1>
+
+    <p>
+      HPIC Financial Snapshot reads HPIC's QuickBooks Online balances. Disconnecting stops that
+      access immediately and permanently until it is re-authorized.
+    </p>
+
+    <h2>How to disconnect</h2>
+    <ol>
+      <li>Sign in to QuickBooks Online as an administrator.</li>
+      <li>Go to <strong>Apps</strong> &rarr; <strong>My Apps</strong>.</li>
+      <li>Find <strong>SST_App</strong> and choose <strong>Disconnect</strong>.</li>
+    </ol>
+
+    <h2>What happens next</h2>
+    <p>
+      The stored authorization becomes invalid at once. The dashboard will stop showing balances
+      and will state plainly that QuickBooks is no longer connected — it will not display stale
+      figures as though they were current.
+    </p>
+
+    <h2>Reconnecting</h2>
+    <p>
+      An HPIC administrator can restore access by visiting the dashboard's authorization endpoint
+      with the shared passphrase. Reconnecting requires signing in to QuickBooks and granting
+      consent again.
+    </p>
+  </body>
+</html>
