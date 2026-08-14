@@ -165,6 +165,44 @@ dashboard exists to prevent.
 If an account rolls up sub-accounts, the panel says so and shows the parent's
 own balance in a note, so the mapping gets reviewed rather than misread.
 
+## Checking the connection
+
+The Worker keeps a diagnostic endpoint behind the same passphrase:
+
+```
+https://<your-worker>.workers.dev/admin/status?k=<passphrase>
+```
+
+It also accepts the passphrase as a header, which keeps it out of shell history
+and proxy logs — prefer this from a terminal:
+
+```bash
+curl -s -H "X-HPIC-Auth: <passphrase>" https://<your-worker>.workers.dev/admin/status
+```
+
+It returns JSON:
+
+| Field | What it tells you |
+| --- | --- |
+| `seeded` | Whether a token pair exists at all. `false` means OAuth was never completed. |
+| `needsReauth` | `true` means the refresh token is dead and a human must redo consent at `/oauth/start`. |
+| `accessTokenExpiresAt` | When the current access token dies. The refresh happens on the first cron **after** this time. |
+| `lastRefreshAt` | When a token pair was last written. |
+| `lastScheduledRun` | When the hourly keep-alive last ran, and what it saw. Absent means the cron has never fired. |
+| `events` | The last 20 things the token machinery did. This is the useful part. |
+
+In `events`, `kind` is one of `seeded`, `refreshed`, `refresh_failed`,
+`revoked`, or `discovery_fallback`. A healthy unattended connection shows
+`refreshed` entries whose detail says the refresh token was `rotated` or
+`unchanged` — either is fine, that is Intuit's choice, not ours.
+
+`refresh_failed` with `invalid_grant` is the one that matters: the connection is
+gone and no amount of waiting fixes it. Reconnect at `/oauth/start`.
+
+An earlier cron run that shows no `refreshed` event is **not** a failure. If the
+access token was still valid, the keep-alive correctly returned it from storage
+without calling Intuit.
+
 ## What the balance figure actually is
 
 QuickBooks' API returns the **book balance** — the "In QuickBooks" figure. The
