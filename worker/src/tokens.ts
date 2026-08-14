@@ -21,6 +21,7 @@
  */
 
 import { DurableObject } from "cloudflare:workers";
+import { FALLBACK_ENDPOINTS, fetchDiscovery, type OAuthEndpoints } from "./endpoints";
 import type {
   AccessTokenResult,
   Env,
@@ -28,7 +29,8 @@ import type {
   IntuitTokenResponse,
 } from "./types";
 
-const TOKEN_ENDPOINT = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer";
+/** How long a fetched discovery document is trusted before re-reading it. */
+const ENDPOINT_TTL_MS = 24 * 60 * 60_000;
 
 /** Refresh this far before actual expiry so a call never races the deadline. */
 const EXPIRY_SKEW_MS = 120_000;
@@ -50,6 +52,20 @@ interface PendingAuth {
   createdAt: number;
 }
 
+/**
+ * A record of what the token machinery last did.
+ *
+ * Without this, a connection that dies overnight leaves no trace: the next
+ * person sees only "needs reconnecting" with no way to tell whether a refresh
+ * failed, Intuit revoked the grant, or nobody loaded the page for 100 days.
+ * For a tool maintained by volunteers, the difference matters.
+ */
+interface TokenEvent {
+  at: number;
+  kind: "seeded" | "refreshed" | "refresh_failed" | "revoked" | "discovery_fallback";
+  detail?: string;
+}
+
 interface CachedSnapshot {
   snapshot: FundsSnapshot;
   cachedAt: number;
@@ -64,11 +80,55 @@ export class TokenStore extends DurableObject<Env> {
    */
   private refreshInFlight: Promise<AccessTokenResult> | null = null;
 
+  /**
+   * OAuth endpoints, read from Intuit's discovery document and cached.
+   *
+   * Precedence on a failed read: a stale cached document beats the compiled-in
+   * fallback, because it came from Intuit at some point; the fallback is only
+   * for a cold start during an outage.
+   */
+  async getEndpoints(): Promise<OAuthEndpoints> {
+    const cached = await this.ctx.storage.get<{ endpoints: OAuthEndpoints; at: number }>(
+      "endpoints",
+    );
+    if (cached && Date.now() - cached.at < ENDPOINT_TTL_MS) {
+      return cached.endpoints;
+    }
+
+    const fresh = await fetchDiscovery(this.env);
+    if (fresh) {
+      await this.ctx.storage.put("endpoints", { endpoints: fresh, at: Date.now() });
+      return fresh;
+    }
+
+    if (cached) return cached.endpoints;
+
+    await this.record(
+      "discovery_fallback",
+      "Discovery document unavailable and nothing cached; using compiled-in endpoints.",
+    );
+    return FALLBACK_ENDPOINTS;
+  }
+
+  /** Append to the rolling event log. Keeps the most recent 20 entries. */
+  private async record(kind: TokenEvent["kind"], detail?: string): Promise<void> {
+    const log = (await this.ctx.storage.get<TokenEvent[]>("events")) ?? [];
+    log.push({ at: Date.now(), kind, detail });
+    await this.ctx.storage.put("events", log.slice(-20));
+  }
+
   /** Store the token pair from an authorization-code exchange. */
   async seed(tokens: IntuitTokenResponse): Promise<void> {
     await this.persist(tokens);
     await this.ctx.storage.delete("needs_reauth");
     await this.ctx.storage.delete("snapshot");
+    await this.record("seeded");
+  }
+
+  /** The event log, for diagnosing a connection that died unattended. */
+  async events(): Promise<Array<{ at: string; kind: string; detail?: string }>> {
+    const log = (await this.ctx.storage.get<TokenEvent[]>("events")) ?? [];
+    return log.map((e) => ({ at: new Date(e.at).toISOString(), kind: e.kind, detail: e.detail }));
   }
 
   /**
@@ -109,7 +169,7 @@ export class TokenStore extends DurableObject<Env> {
 
     let response: Response;
     try {
-      response = await fetch(TOKEN_ENDPOINT, {
+      response = await fetch((await this.getEndpoints()).token, {
         method: "POST",
         headers: {
           Accept: "application/json",
@@ -137,10 +197,16 @@ export class TokenStore extends DurableObject<Env> {
       // recover it — someone has to re-authorize — so record that plainly
       // instead of retrying into a wall.
       if (body.includes("invalid_grant")) {
+        await this.record(
+          "refresh_failed",
+          `invalid_grant (HTTP ${response.status}) — the refresh token was rejected. ` +
+            `Either it expired, the grant was revoked in QuickBooks, or a stale value was used.`,
+        );
         await this.ctx.storage.put("needs_reauth", true);
         await this.ctx.storage.delete("tokens");
         return { ok: false, reason: "needs_reauth", detail: "invalid_grant" };
       }
+      await this.record("refresh_failed", `HTTP ${response.status}: ${body.slice(0, 200)}`);
       return {
         ok: false,
         reason: "not_seeded",
@@ -150,6 +216,12 @@ export class TokenStore extends DurableObject<Env> {
 
     const tokens = JSON.parse(body) as IntuitTokenResponse;
     await this.persist(tokens);
+    await this.record(
+      "refreshed",
+      `new access token valid ${tokens.expires_in}s; refresh token ${
+        tokens.refresh_token === refreshToken ? "unchanged" : "rotated"
+      }`,
+    );
     return { ok: true, accessToken: tokens.access_token };
   }
 
@@ -166,6 +238,56 @@ export class TokenStore extends DurableObject<Env> {
       lastRefreshAt: Date.now(),
     };
     await this.ctx.storage.put("tokens", stored);
+  }
+
+  /**
+   * Revoke the connection at Intuit and forget it locally.
+   *
+   * Local state is cleared whether or not Intuit confirms. The user asked to
+   * disconnect; continuing to hold a token we may no longer be entitled to use
+   * would be the wrong reading of that instruction. The return value reports
+   * whether Intuit acknowledged, so a failure is visible rather than silent.
+   */
+  async revoke(): Promise<{ revokedAtIntuit: boolean; detail: string }> {
+    const tokens = await this.ctx.storage.get<StoredTokens>("tokens");
+
+    const forgetLocally = async () => {
+      await this.ctx.storage.delete("tokens");
+      await this.ctx.storage.delete("snapshot");
+      await this.ctx.storage.put("needs_reauth", true);
+    };
+
+    if (!tokens) {
+      await forgetLocally();
+      return { revokedAtIntuit: false, detail: "There was no active connection to revoke." };
+    }
+
+    const credentials = btoa(`${this.env.QBO_CLIENT_ID}:${this.env.QBO_CLIENT_SECRET}`);
+    let detail: string;
+    let revoked = false;
+
+    try {
+      const response = await fetch((await this.getEndpoints()).revocation, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Basic ${credentials}`,
+        },
+        // Revoking the refresh token invalidates the whole grant.
+        body: JSON.stringify({ token: tokens.refreshToken }),
+      });
+      revoked = response.ok;
+      detail = response.ok
+        ? "QuickBooks confirmed the connection was revoked."
+        : `Intuit returned ${response.status}. The connection was cleared locally regardless.`;
+    } catch (error) {
+      detail = `Could not reach Intuit (${String(error)}). The connection was cleared locally regardless.`;
+    }
+
+    await forgetLocally();
+    await this.record("revoked", detail);
+    return { revokedAtIntuit: revoked, detail };
   }
 
   /** Connection state, for the health endpoint and the reconnect message. */

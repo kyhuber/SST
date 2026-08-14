@@ -11,11 +11,10 @@
  */
 
 import { checkPassphrase } from "./auth";
+import { FALLBACK_ENDPOINTS, type OAuthEndpoints } from "./endpoints";
 import type { Env, IntuitTokenResponse } from "./types";
 import type { TokenStore } from "./tokens";
 
-const AUTHORIZE_ENDPOINT = "https://appcenter.intuit.com/connect/oauth2";
-const TOKEN_ENDPOINT = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer";
 const ACCOUNTING_SCOPE = "com.intuit.quickbooks.accounting";
 
 function page(title: string, body: string, status = 200): Response {
@@ -47,7 +46,18 @@ export async function handleStart(
   }
 
   const state = await store.beginAuth();
-  const authorizeUrl = new URL(AUTHORIZE_ENDPOINT);
+
+  // Endpoint resolution must never be what stops someone from connecting.
+  // Discovery is the preferred source; if resolving it fails for any reason,
+  // fall back rather than showing a 500 to a person at a keyboard.
+  let endpoints: OAuthEndpoints;
+  try {
+    endpoints = await store.getEndpoints();
+  } catch {
+    endpoints = FALLBACK_ENDPOINTS;
+  }
+
+  const authorizeUrl = new URL(endpoints.authorization);
   authorizeUrl.searchParams.set("client_id", env.QBO_CLIENT_ID);
   authorizeUrl.searchParams.set("response_type", "code");
   authorizeUrl.searchParams.set("scope", ACCOUNTING_SCOPE);
@@ -90,7 +100,8 @@ export async function handleCallback(
   }
 
   const credentials = btoa(`${env.QBO_CLIENT_ID}:${env.QBO_CLIENT_SECRET}`);
-  const response = await fetch(TOKEN_ENDPOINT, {
+  const endpoints = await store.getEndpoints();
+  const response = await fetch(endpoints.token, {
     method: "POST",
     headers: {
       Accept: "application/json",

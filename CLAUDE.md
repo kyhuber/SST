@@ -51,6 +51,13 @@ credentials.
 - Coming in Phase 2: never sum reimbursable and non-reimbursable awards into one
   "available" figure, and render unknown reimbursable status as unknown.
 
+## Shell
+
+Windows, **Git Bash** (MINGW64), run from the repository root. Commands must be
+POSIX: forward-slash paths (`/c/Users/...` or `~/...`), no `cd` to an absolute
+Windows path, no `python` (not installed — use `node`). PowerShell 5.1 exists
+but lacks `&&`, `||`, and much else; prefer Git Bash.
+
 ## Gotchas that cost real time
 
 - **Never pipe secrets into `wrangler secret put` from PowerShell.** Its

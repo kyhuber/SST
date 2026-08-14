@@ -59,8 +59,15 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders(env) });
     }
 
+    // The one state-changing action in the application: revoking our own
+    // QuickBooks authorization at the user's request. It changes nothing in
+    // HPIC's accounting data — it ends this app's access to it.
+    if (request.method === "POST" && url.pathname === "/admin/disconnect") {
+      return handleDisconnect(request, env);
+    }
+
     if (request.method !== "GET") {
-      // Nothing in this application writes anywhere. Refuse other verbs
+      // Nothing else in this application writes anywhere. Refuse other verbs
       // outright rather than letting a future edit quietly add one.
       return json({ error: "Method not allowed" }, env, 405);
     }
@@ -89,6 +96,47 @@ export default {
         return handleAccountList(env);
       }
 
+      // Diagnostic view: what the token machinery has actually been doing.
+      case "/admin/status": {
+        if (!checkPassphrase(url.searchParams.get("k") ?? request.headers.get(AUTH_HEADER), env)) {
+          return json({ error: "Not authorized" }, env, 401);
+        }
+        const store = tokenStore(env);
+        const [status, events, endpoints] = await Promise.all([
+          store.status(),
+          store.events(),
+          store.getEndpoints(),
+        ]);
+        return json(
+          { ...status, environment: env.QBO_ENV, mode: env.QBO_MODE, endpoints, events },
+          env,
+        );
+      }
+
+      // Confirmation page for the disconnect. A GET never revokes anything;
+      // it renders a form that POSTs.
+      case "/admin/disconnect": {
+        if (!checkPassphrase(url.searchParams.get("k"), env)) {
+          return htmlPage("Not authorized", "<p>Wrong or missing passphrase.</p>", 401);
+        }
+        const status = await tokenStore(env).status();
+        if (!status.seeded) {
+          return htmlPage(
+            "Not connected",
+            `<p>QuickBooks is not currently connected, so there is nothing to disconnect.</p>`,
+          );
+        }
+        return htmlPage(
+          "Disconnect QuickBooks",
+          `<p>This revokes this dashboard's access to QuickBooks. Balances stop appearing ` +
+            `immediately, and reconnecting requires signing in to QuickBooks and granting ` +
+            `consent again.</p>` +
+            `<form method="POST" action="/admin/disconnect">` +
+            `<input type="hidden" name="k" value="${escapeHtml(url.searchParams.get("k") ?? "")}">` +
+            `<button type="submit">Disconnect QuickBooks</button></form>`,
+        );
+      }
+
       case "/oauth/start":
         return handleStart(request, env, tokenStore(env));
 
@@ -100,6 +148,35 @@ export default {
     }
   },
 };
+
+function htmlPage(title: string, body: string, status = 200): Response {
+  return new Response(
+    `<!doctype html><meta charset="utf-8"><title>${title}</title>` +
+      `<style>body{font:16px/1.5 system-ui,sans-serif;max-width:34rem;margin:4rem auto;padding:0 1rem}` +
+      `code{background:#f1f1f1;padding:.1em .35em;border-radius:3px}` +
+      `button{font:inherit;padding:.55rem .9rem;border:1px solid #8f2419;background:#8f2419;` +
+      `color:#fff;border-radius:5px;cursor:pointer}</style>` +
+      `<h1>${title}</h1>${body}`,
+    { status, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } },
+  );
+}
+
+/** Revokes the QuickBooks authorization. Reached only via POST. */
+async function handleDisconnect(request: Request, env: Env): Promise<Response> {
+  const form = await request.formData();
+  const supplied = String(form.get("k") ?? "") || request.headers.get(AUTH_HEADER);
+  if (!checkPassphrase(supplied, env)) {
+    return htmlPage("Not authorized", "<p>Wrong or missing passphrase.</p>", 401);
+  }
+
+  const result = await tokenStore(env).revoke();
+  return htmlPage(
+    "QuickBooks disconnected",
+    `<p>${escapeHtml(result.detail)}</p>` +
+      `<p>The dashboard will now report that QuickBooks needs to be reconnected rather than ` +
+      `showing figures. To reconnect, open <code>/oauth/start</code> with the passphrase.</p>`,
+  );
+}
 
 function escapeHtml(value: string): string {
   return value.replace(
