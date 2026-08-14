@@ -125,6 +125,16 @@ export class TokenStore extends DurableObject<Env> {
     await this.record("seeded");
   }
 
+  /**
+   * Note that the hourly keep-alive ran.
+   *
+   * Deliberately kept out of the event log: an hourly entry would push the
+   * seeds, refreshes, and failures worth reading off the end within a day.
+   */
+  async recordScheduledRun(connection: string): Promise<void> {
+    await this.ctx.storage.put("last_scheduled", { at: Date.now(), connection });
+  }
+
   /** The event log, for diagnosing a connection that died unattended. */
   async events(): Promise<Array<{ at: string; kind: string; detail?: string }>> {
     const log = (await this.ctx.storage.get<TokenEvent[]>("events")) ?? [];
@@ -295,13 +305,24 @@ export class TokenStore extends DurableObject<Env> {
     seeded: boolean;
     needsReauth: boolean;
     lastRefreshAt: string | null;
+    accessTokenExpiresAt: string | null;
+    lastScheduledRun: { at: string; connection: string } | null;
   }> {
     const tokens = await this.ctx.storage.get<StoredTokens>("tokens");
     const needsReauth = (await this.ctx.storage.get<boolean>("needs_reauth")) ?? false;
+    const scheduled = await this.ctx.storage.get<{ at: number; connection: string }>(
+      "last_scheduled",
+    );
     return {
       seeded: Boolean(tokens),
       needsReauth,
       lastRefreshAt: tokens ? new Date(tokens.lastRefreshAt).toISOString() : null,
+      accessTokenExpiresAt: tokens
+        ? new Date(tokens.accessTokenExpiresAt).toISOString()
+        : null,
+      lastScheduledRun: scheduled
+        ? { at: new Date(scheduled.at).toISOString(), connection: scheduled.connection }
+        : null,
     };
   }
 

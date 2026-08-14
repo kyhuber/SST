@@ -52,6 +52,18 @@ function json(body: unknown, env: Env, status = 200): Response {
 }
 
 export default {
+  /**
+   * Hourly keep-alive (see the [triggers] block in wrangler.toml).
+   *
+   * Refreshes the QuickBooks connection whether or not anyone visits, so the
+   * refresh token never goes stale between board meetings, and leaves a warm
+   * snapshot for the next page load. Failures land in the token event log
+   * rather than surfacing for the first time in front of the board.
+   */
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(keepAlive(env));
+  },
+
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
@@ -237,6 +249,22 @@ async function handleAccountList(env: Env): Promise<Response> {
       `<code>printf '%s' "&lt;id&gt;" | npx wrangler secret put QBO_REBUILD_FUND_ACCOUNT_ID</code></p>` +
       `<table><tr><th>ID</th><th>Name</th><th>Type</th><th>Sub-type</th><th class="num">Balance</th></tr>${rows}</table>`,
   );
+}
+
+/**
+ * Fetch a fresh snapshot on a schedule. Any token refresh happens as a side
+ * effect of asking for an access token, which is the point.
+ */
+async function keepAlive(env: Env): Promise<void> {
+  if (env.QBO_MODE !== "live") return;
+
+  const store = tokenStore(env);
+  const snapshot = await getFunds(env, store);
+
+  if (snapshot.connection === "ok" && snapshot.accounts.some((a) => a.status === "ok")) {
+    await store.putCachedSnapshot(snapshot);
+  }
+  await store.recordScheduledRun(snapshot.connection);
 }
 
 async function handleFunds(env: Env): Promise<Response> {

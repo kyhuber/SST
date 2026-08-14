@@ -26,6 +26,18 @@ class_name = "TokenStore"
 tag = "v1"
 new_sqlite_classes = ["TokenStore"]
 
+# Hourly keep-alive. Two reasons, both about unattended operation:
+#
+#  1. Intuit expires a refresh token after 100 days of non-use. A dashboard
+#     opened only at board meetings could silently lose its connection between
+#     them. Touching it hourly makes that impossible.
+#  2. It exercises the token refresh continuously, so a refresh problem shows
+#     up in the event log rather than in front of the board.
+#
+# It also leaves a warm snapshot behind, so the first page load is instant.
+[triggers]
+crons = ["0 * * * *"]
+
 [vars]
 # "sandbox" or "production" — selects the QuickBooks API base URL.
 QBO_ENV = "sandbox"
