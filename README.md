@@ -35,9 +35,17 @@ cd worker && npm install && npm run dev
 cd web && npm install && npm run dev
 ```
 
-The Worker starts in **fixture mode** (`QBO_MODE = "fixture"` in
-`worker/wrangler.toml`), serving recorded data. The full dashboard works with no
-Intuit account, no credentials, and no network calls to QuickBooks.
+The Worker starts in **fixture mode**, serving recorded data. The full dashboard
+works with no Intuit account, no credentials, and no network calls to
+QuickBooks.
+
+Fixture mode comes from `QBO_MODE=fixture` in `.dev.vars`, which overrides the
+`live` setting in `wrangler.toml` for local runs only. Keep it that way: local
+`wrangler dev` has its own Durable Object storage and therefore no QuickBooks
+tokens, and it cannot be seeded, because Intuit requires an https redirect URI
+and the OAuth flow will not complete against localhost. If you find the local
+dashboard insisting QuickBooks is not connected, this line is missing from your
+`.dev.vars`.
 
 Point the frontend at the Worker with `web/.env.local`:
 

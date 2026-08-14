@@ -11,3 +11,16 @@ QBO_CLIENT_SECRET=
 # Values here override [vars] in wrangler.toml during `wrangler dev`, so the
 # Vite dev server's origin can be allowed locally without loosening production.
 ALLOWED_ORIGIN=http://localhost:5173
+
+# Keeps local development on recorded data while the deployed Worker stays live.
+#
+# This override is not optional in practice. Local `wrangler dev` has its own
+# Durable Object storage, so it holds no QuickBooks tokens, and it cannot be
+# seeded: Intuit requires an https redirect URI, so the OAuth flow cannot
+# complete against localhost. In live mode the local dashboard can only ever
+# report that QuickBooks is not connected.
+#
+# The override belongs here rather than in wrangler.toml, which stays "live".
+# A mistake in this direction costs a developer recorded data; the reverse
+# would deploy fixture data to the board.
+QBO_MODE=fixture
