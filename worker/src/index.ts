@@ -155,8 +155,9 @@ async function handleAccountList(env: Env): Promise<Response> {
 
   return html(
     `<h1>QuickBooks asset accounts</h1>` +
-      `<p>Company <code>${escapeHtml(env.QBO_REALM_ID)}</code>. Set <code>QBO_OPERATING_ACCOUNT_ID</code> ` +
-      `and <code>QBO_REBUILD_FUND_ACCOUNT_ID</code> in <code>wrangler.toml</code> to the IDs below, then redeploy.</p>` +
+      `<p>Set the mapping from the IDs below — these are Worker secrets, not <code>wrangler.toml</code> vars:</p>` +
+      `<p><code>printf '%s' "&lt;id&gt;" | npx wrangler secret put QBO_OPERATING_ACCOUNT_ID</code><br>` +
+      `<code>printf '%s' "&lt;id&gt;" | npx wrangler secret put QBO_REBUILD_FUND_ACCOUNT_ID</code></p>` +
       `<table><tr><th>ID</th><th>Name</th><th>Type</th><th>Sub-type</th><th class="num">Balance</th></tr>${rows}</table>`,
   );
 }

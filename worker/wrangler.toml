@@ -34,19 +34,23 @@ QBO_ENV = "sandbox"
 # the developer app, sandbox company, and OAuth seeding are in place.
 QBO_MODE = "live"
 
-# QuickBooks company ID. The /oauth/callback page prints this after consent.
-QBO_REALM_ID = "9341457717421687"
+# NOTE: QBO_REALM_ID, QBO_OPERATING_ACCOUNT_ID, and QBO_REBUILD_FUND_ACCOUNT_ID
+# are deliberately NOT here. This repository is public, and those values name
+# HPIC's actual QuickBooks company and accounts. They are set as secrets:
+#
+#   printf '%s' "<value>" | npx wrangler secret put QBO_REALM_ID
+#
+# A name cannot be both a [vars] entry and a secret — Cloudflare rejects the
+# binding collision — so a var must be removed and deployed before the secret
+# of the same name can be created.
 
 # Must match the redirect URI registered on the Intuit app EXACTLY — scheme,
 # casing, and trailing slash included.
 QBO_REDIRECT_URI = "https://hpic-sst.kyhuber-ft.workers.dev/oauth/callback"
 
-# Account mapping. Unconfirmed with the treasurer as of this writing; leaving
-# these empty renders "not configured" on the panel rather than failing.
-# Sandbox mapping: 35 = "Checking", 36 = "Savings". Replace both with the real
-# IDs from /admin/accounts when the production company is connected.
-QBO_OPERATING_ACCOUNT_ID = "35"
-QBO_REBUILD_FUND_ACCOUNT_ID = "36"
+# Account mapping is a secret too (see the note above). Find the IDs with
+# /admin/accounts. Sandbox values at time of writing: 35 = "Checking",
+# 36 = "Savings". An unset ID renders "not configured" rather than failing.
 
 # Origin of the GitHub Pages frontend, for CORS. Narrow this from a wildcard
 # before the dashboard is shared with the board.

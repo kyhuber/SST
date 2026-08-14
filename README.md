@@ -83,16 +83,26 @@ secret, and every comparison then fails with no visible clue — the passphrase
 looks correct and returns 401 anyway. Type the value at the prompt, or pipe from
 Git Bash with `printf '%s' "$VALUE" | npx wrangler secret put NAME`.
 
-Plain values in `worker/wrangler.toml` under `[vars]`:
+Three more values are secrets rather than `[vars]`, because this repository is
+public and they name HPIC's actual QuickBooks company and accounts:
+
+```bash
+printf '%s' "<value>" | npx wrangler secret put QBO_REALM_ID
+printf '%s' "<value>" | npx wrangler secret put QBO_OPERATING_ACCOUNT_ID
+printf '%s' "<value>" | npx wrangler secret put QBO_REBUILD_FUND_ACCOUNT_ID
+```
+
+**A name cannot be both a `[vars]` entry and a secret.** Cloudflare rejects the
+binding collision with `code: 10053`. To convert a var into a secret, delete it
+from `wrangler.toml`, run `wrangler deploy`, and only then run `secret put`.
+
+Plain values that remain in `worker/wrangler.toml` under `[vars]`:
 
 | Variable | Meaning |
 | --- | --- |
 | `QBO_ENV` | `sandbox` or `production` — picks the QuickBooks base URL |
 | `QBO_MODE` | `fixture` or `live` |
-| `QBO_REALM_ID` | QuickBooks company ID |
 | `QBO_REDIRECT_URI` | Must match the Intuit app registration exactly |
-| `QBO_OPERATING_ACCOUNT_ID` | Chart-of-accounts ID for the operating account |
-| `QBO_REBUILD_FUND_ACCOUNT_ID` | Chart-of-accounts ID for the rebuild fund |
 | `ALLOWED_ORIGIN` | Origin of the GitHub Pages site, for CORS |
 
 Then `npx wrangler deploy`.
