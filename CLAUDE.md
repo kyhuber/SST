@@ -82,14 +82,27 @@ but lacks `&&`, `||`, and much else; prefer Git Bash.
 
 Verified against live infrastructure: OAuth seeding, live account reads, the
 snapshot cache round-trip, per-account degradation with total suppression, the
-401 boundary, and CORS from the real Pages origin.
+401 boundary, CORS from the real Pages origin, the disconnect/revoke path
+(Intuit confirmed the revocation), the hourly cron firing unattended, and — as
+of 2026-08-14 — the token refresh itself:
 
-**The token refresh path is verified by tests, not yet against live Intuit.**
-The distinction matters. `worker/test/tokens.test.ts` runs in workerd and covers
-refresh-token rotation, `invalid_grant`, an unreachable Intuit, and the
-single-flight guard — all with outbound `fetch` stubbed. What no test covers is
-whether Intuit's real response matches what the tests feed in. That is what the
-hourly keep-alive cron is for; check `/admin/status?k=…` for a `refreshed` event.
+```
+"kind":"refreshed","detail":"new access token valid 3600s; refresh token unchanged"
+```
+
+**One sub-case is still test-only: a rotated refresh token.** Intuit returned
+the same refresh token on that first live refresh, which is normal — it rotates
+roughly every 24 hours, not every hour. So the property that matters most, that
+a *rotated* value is re-stored, has been proven by `worker/test/tokens.test.ts`
+but not yet observed live. Confirm it by checking `/admin/status` for a
+`refreshed` event whose detail says `rotated` rather than `unchanged`; there
+should be one within a day of the connection being seeded.
+
+The tests also cover `invalid_grant`, an unreachable Intuit, and the
+single-flight guard. None of those three can be reached against live Intuit at
+all — forcing `invalid_grant` means revoking the real grant, Intuit cannot be
+made unreachable on demand, and nothing in normal operation issues two
+concurrent refreshes.
 
 If the dashboard ever reports "needs to be reconnected" unexpectedly, look at
 that event log first, then at `worker/src/tokens.ts`.
