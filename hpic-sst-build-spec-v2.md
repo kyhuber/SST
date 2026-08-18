@@ -12,7 +12,7 @@ This tool is a read-only, internal, board-facing dashboard answering three
 questions:
 
 1. How much cash do we actually have right now?
-2. How much grant money is applied for, awarded, and still owed to us?
+2. How much grant money has been awarded to us, and how much is still owed?
 3. Can we afford to start the next construction phase?
 
 It does not move money, does not write to any system, and is not public.
@@ -42,23 +42,24 @@ unattended.
 HPIC's grant process maps directly onto LGL's native objects. This is the core
 domain model and the most important thing to get right:
 
-- **Goal** — created when HPIC applies for a grant. Carries an ask amount,
-  request status, request date, and due date. LGL designs goals specifically
-  for grant proposal tracking and capital campaigns, so this is the feature
-  working as intended, not a workaround.
 - **Pledge** — created when the grant is awarded. Carries an amount and,
   importantly, an **amount due** field.
 - **Gift** — recorded when payment arrives, applied against the pledge.
 
 This produces the funnel with no derivation required:
 
-    Applied (goal ask amounts)
-      → Pledged (pledge amounts)
-        → Received (pledge amount minus amount due)
-          → Outstanding (pledge amount due)
+    Pledged (pledge amounts)
+      → Received (pledge amount minus amount due)
+        → Outstanding (pledge amount due)
 
 Use LGL's `amount due` directly rather than summing gifts against pledges
 yourself. LGL already maintains it, and recomputing invites drift.
+
+**Applications are deliberately out of scope** (confirmed with Alex,
+2026-08-14). This tool starts at money awarded or promised, not money requested.
+LGL's Goal object does track grant applications, and tracking them is a real
+need — it is simply not this tool's need. Do not add goals back without
+revisiting that decision, and do not treat their absence as an oversight.
 
 Reuse the existing LGL integration pattern and API key handling from the
 membership lookup tool. Verify current endpoint shapes against LGL's API
@@ -67,8 +68,8 @@ documentation at `api.littlegreenlight.com/api-docs/` rather than assuming.
 **Restriction comes from campaigns and funds**, not from a separate attribute.
 LGL treats restricted vs. unrestricted as a canonical use of campaigns, and
 campaigns and funds are both exposed via the API. Read the campaign or fund a
-goal or pledge is coded to and use that as the restriction dimension. Do not
-build a parallel restriction taxonomy.
+pledge is coded to and use that as the restriction dimension. Do not build a
+parallel restriction taxonomy.
 
 ## Reimbursement — the correctness requirement
 
@@ -95,12 +96,12 @@ Rules that follow:
 
 Reimbursable status and contract-signed status are not native LGL fields. LGL
 supports custom fields and custom attributes on its API objects, so these should
-become custom fields on the goal or pledge.
+become custom fields on the pledge.
 
 **Verification step before building this part**: confirm in LGL admin settings
-whether Goal and Pledge appear as available item types for custom fields. If
-they do, define `reimbursable` and `contract_signed` as custom fields and read
-them through the API alongside the rest of the record.
+whether Pledge appears as an available item type for custom fields. If it does,
+define `reimbursable` and `contract_signed` as custom fields and read them
+through the API alongside the rest of the record.
 
 If they are not yet defined or populated, build the display path anyway and
 have it render "unknown" when the field is absent. The prototype should be
@@ -149,14 +150,14 @@ as config so real IDs drop in later.
 
 ### Phase 2 — Grant funnel
 
-Four figures from LGL: applied, pledged, received, outstanding.
+Three figures from LGL: pledged, received, outstanding.
 
 Then:
 
 - Break out by campaign or fund so restricted and unrestricted are visible
   separately.
-- Provide a detail view listing individual goals and pledges with their status,
-  campaign, amounts, and reimbursable status where known.
+- Provide a detail view listing individual pledges with their status, campaign,
+  amounts, and reimbursable status where known.
 - Split the outstanding figure by reimbursable vs. not. That split is the single
   most decision-relevant number on the dashboard.
 
