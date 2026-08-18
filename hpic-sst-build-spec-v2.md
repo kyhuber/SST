@@ -110,9 +110,20 @@ feature with no code change.
 
 ## Hosting and security
 
-- **Frontend**: React, static build, GitHub Pages, personal account.
+- **Frontend**: React, static build, GitHub Pages, served from
+  `sst.hpic1919.org`. The repository lives under the HPIC GitHub organization,
+  not a personal account — the org hosts several tools other members need to
+  reach, and a volunteer-run nonprofit should not depend on one person's login.
 - **Middleware**: Cloudflare Worker. Reuse the existing Worker and Pages setup
-  from the membership lookup tool.
+  from the membership lookup tool. The Cloudflare account remains personal for
+  now and transfers to the organization later; the Worker URL is the Intuit
+  OAuth redirect URI, so moving it is the step with real switching cost and is
+  deliberately deferred rather than bundled with the GitHub move.
+- **No separate database.** Freshness comes from an hourly cron and a snapshot
+  cached in Durable Object storage, so a page load does not hit QuickBooks or
+  LGL. D1 was considered and declined: this is a point-in-time snapshot, trends
+  are out of scope, and each extra storage layer is another place a figure can
+  be separated from the retrieval timestamp that makes it trustworthy.
 - **The security boundary is the Worker, not the URL.** The frontend holds no
   financial data, no credentials, no account identifiers. It is a shell that
   requests data from the Worker. Someone who finds the URL should see nothing.
@@ -212,7 +223,8 @@ Remove these caveats at go-live, once reconciliation is confirmed complete.
 
 ## Go-live checklist
 
-Not prototype work. Recorded here so it isn't lost:
+Not prototype work. Recorded here so it isn't lost. `KYLE-TODO.md` tracks which
+of these are in flight; this is the canonical list.
 
 - Development committee reconciles manual grant tracking into LGL
 - `reimbursable` and `contract_signed` custom fields defined and populated
@@ -221,6 +233,12 @@ Not prototype work. Recorded here so it isn't lost:
 - Dry-in target cost confirmed with the general contractor
 - Data-completeness caveats removed from the UI
 - Cloudflare Access replaces the shared passphrase
+- Repository transferred to the HPIC GitHub organization
+- Dashboard served from `sst.hpic1919.org`
+- QuickBooks production keys approved, and the Intuit developer account held on
+  an organization address that survives any one person leaving
+- Cloudflare account transferred to the organization (deferred; the Worker URL
+  is the Intuit redirect URI, so this one is not free)
 
 ## Out of scope
 

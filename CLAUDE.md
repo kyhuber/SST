@@ -3,6 +3,11 @@
 Read `hpic-sst-build-spec-v2.md` for the full specification. `README.md` covers
 setup, credential rotation, and redeploy. This file is the short orientation.
 
+**`KYLE-TODO.md` is the standing list of work only a human can do** — logins,
+DNS, approvals, conversations. Read it at the start of a session and keep it
+current as things get decided or finished. Step-by-step procedures for those
+items live in `docs/runbook-migration.md`.
+
 ## What this is
 
 A read-only board dashboard for the Highland Park Improvement Club, a
@@ -132,10 +137,32 @@ does not need it, and `wrangler.toml` is deliberately left alone.
 ## Phase status
 
 - **Phase 1 — funds snapshot: done**, against sandbox data.
-- **Phase 2 — LGL grant funnel: not started.** Independent of QuickBooks
-  production keys, so it can proceed in parallel with that approval.
+- **Phase 2 — LGL grant funnel: not started.** Starts at **pledges**, not grant
+  applications — see the spec. Three figures: pledged, received, outstanding.
+  Independent of QuickBooks production keys, so it can proceed in parallel with
+  that approval, and fixture-first so it does not wait on an LGL API key either.
 - **Phase 3 — phase readiness: not started.** Needs the Dry-in target cost from
   the general contractor.
+
+## Hosting, and where it is going
+
+Decisions made 2026-08-14, recorded so they are not re-argued from memory:
+
+- **The repository moves to an HPIC GitHub organization.** It hosts several
+  tools other members should be able to reach, and a volunteer-run org should
+  not depend on one person's account. Steps in `docs/runbook-migration.md`.
+- **The dashboard gets `sst.hpic1919.org`**, a CNAME onto GitHub Pages. The
+  domain stays on Squarespace; no nameserver change. Do this after the repo
+  transfer so the record is set once.
+- **Cloudflare stays on the personal account for now** and transfers when Kyle
+  steps back. The Worker URL is the Intuit OAuth redirect URI, so leaving it
+  alone keeps the QuickBooks connection untouched by any of the above.
+- **No D1 database.** The hourly cron plus the Durable Object snapshot cache
+  already serve pages without querying QuickBooks each time — that architecture
+  is already built and running. D1 earns its place when historical trends come
+  into scope, and trends are explicitly out of scope. Every extra storage layer
+  is another place a number can get separated from its retrieval timestamp,
+  which is the failure this tool exists to prevent.
 
 ## Context
 
