@@ -73,7 +73,6 @@ read this before touching `worker/src/lgl.ts`:
 
 | Spec says | API actually has |
 | --- | --- |
-| `Goal` object | No `/goals` endpoint. A grant application is an **`appeal_request`** (`ask_amount`, `status`, `raised`, `custom_fields`, `custom_attrs`). |
 | `Pledge` object | No `/pledges` endpoint. An award is a **gift whose `gift_type` is "Pledge"** — the stock gift category "Grant" sits under exactly that type. |
 | Pledge `amount due` | **Does not exist.** The strings `amount_due` and `balance` appear nowhere in the API docs. |
 
@@ -88,12 +87,20 @@ labeled as derived.
 
 Two more things that matter:
 
-- **There is no global `appeal_requests` list endpoint.** Applications are read
-  by enumerating `/appeals`, then `/appeals/{id}/appeal_requests` for each.
-- **Scope is not optional for correctness.** LGL holds every donor ask and
-  pledge. `LGL_GRANT_CAMPAIGN_IDS` / `LGL_GRANT_GIFT_CATEGORY_IDS` narrow the
-  reads; unset, the snapshot sets `unscoped: true` and the UI says the figures
-  are not grants-only rather than implying they are.
+- **Applications are out of scope, and the reads are gone.** The funnel starts
+  at Pledged: this tool covers money awarded or promised, not money requested
+  (Alex, 2026-08-14). LGL does model applications — they are `appeal_request`
+  records, reachable only by enumerating `/appeals` then
+  `/appeals/{id}/appeal_requests` for each, since there is no global list
+  endpoint — but nothing here reads them. `test/lgl.test.ts` pins that no
+  request URL mentions an appeal, because the enumeration is easy to
+  reintroduce while adding a later stage and it was the most expensive part of
+  the page walk. Do not add it back without revisiting the scope decision.
+- **Scope is not optional for correctness.** LGL holds every pledge, most of
+  them individual donor activity. `LGL_GRANT_CAMPAIGN_IDS` /
+  `LGL_GRANT_GIFT_CATEGORY_IDS` narrow the reads; unset, the snapshot sets
+  `unscoped: true` and the UI says the figures are not grants-only rather than
+  implying they are.
 
 The gift type ID for "Pledge" is resolved by name at runtime, not hardcoded — a
 wrong ID returns zero awards, which looks identical to HPIC having no grants.
@@ -187,17 +194,12 @@ does not need it, and `wrangler.toml` is deliberately left alone.
 
 - **Phase 1 — funds snapshot: done**, against sandbox data.
 - **Phase 2 — LGL grant funnel: thin slice done, fixture-only.** Worker client,
-  `GET /api/grants`, fixtures, tests, and UI are in. Applied and Pledged compute;
-  Received and Outstanding are structurally unavailable (see above). Still to do:
-  a real `LGL_API_KEY` and a live read, the campaign/fund restriction breakdown,
-  and the pledge detail list.
-
-  **Applied is now out of scope and should be removed.** Alex confirmed on
-  2026-08-14 — after this slice was built — that the tool starts at money
-  awarded or promised, not money requested. The `appeal_request` reads exist and
-  work; they answer a question nobody asked of this tool. Deleting them also
-  removes the `/appeals` enumeration, which is the most expensive part of the
-  page walk. Do this before adding anything else to the funnel.
+  `GET /api/grants`, fixtures, tests, and UI are in. The funnel is Pledged →
+  Received → Outstanding; Pledged computes, and Received and Outstanding are
+  structurally unavailable (see above). Applied was built and then removed on
+  2026-08-18, once Alex confirmed the tool starts at money awarded rather than
+  requested. Still to do: a real `LGL_API_KEY` and a live read, the
+  campaign/fund restriction breakdown, and the pledge detail list.
 - **Phase 3 — phase readiness: not started.** Needs the Dry-in target cost from
   the general contractor. Note that "spendable excludes unreceived reimbursable
   awards" depends on the outstanding figure, which is currently unavailable.

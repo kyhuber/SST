@@ -38,115 +38,6 @@ const CAMPAIGNS = [
   { id: 902, name: "Annual Giving", description: null, is_active: true },
 ];
 
-const APPEALS = [
-  {
-    id: 3301,
-    name: "Rebuild Grants 2026",
-    campaign_id: 901,
-    campaign_name: "Clubhouse Rebuild",
-    date: "2026-01-15",
-    financial_goal: 1500000,
-    is_active: true,
-  },
-  {
-    id: 3302,
-    name: "Spring Member Appeal",
-    campaign_id: 902,
-    campaign_name: "Annual Giving",
-    date: "2026-03-01",
-    financial_goal: 25000,
-    is_active: true,
-  },
-];
-
-/**
- * Grant applications. In LGL these are appeal_requests: the per-constituent
- * ask records hanging off an appeal, carrying `ask_amount` and `status`.
- */
-const APPEAL_REQUESTS: Record<number, unknown[]> = {
-  3301: [
-    {
-      id: 480011,
-      constituent_id: 1200401,
-      constituent_name: "Washington State Department of Commerce",
-      appeal_id: 3301,
-      name: "Building Communities Fund",
-      raised: 0.0,
-      status: "submitted",
-      ask_amount: 750000.0,
-      assigned_to: null,
-      custom_fields: [],
-      custom_attrs: [],
-      created_at: "2026-01-20T17:02:11Z",
-      updated_at: "2026-05-02T15:44:09Z",
-    },
-    {
-      id: 480012,
-      constituent_id: 1200402,
-      constituent_name: "4Culture",
-      appeal_id: 3301,
-      name: "Building for Culture",
-      raised: 0.0,
-      status: "submitted",
-      ask_amount: 300000.0,
-      assigned_to: null,
-      custom_fields: [],
-      custom_attrs: [],
-      created_at: "2026-02-04T19:11:52Z",
-      updated_at: "2026-04-18T22:03:31Z",
-    },
-    {
-      id: 480013,
-      constituent_id: 1200403,
-      constituent_name: "Seattle Office of Arts & Culture",
-      appeal_id: 3301,
-      name: "Cultural Facilities Grant",
-      raised: 0.0,
-      status: "open",
-      ask_amount: 125000.0,
-      assigned_to: null,
-      custom_fields: [],
-      custom_attrs: [],
-      created_at: "2026-03-11T16:30:00Z",
-      updated_at: "2026-03-11T16:30:00Z",
-    },
-  ],
-  // Individual donor asks, not grants. Present so that the effect of scoping
-  // (or failing to scope) is visible in fixture mode rather than theoretical.
-  3302: [
-    {
-      id: 480101,
-      constituent_id: 1200501,
-      constituent_name: "Alvarez, Renata",
-      appeal_id: 3302,
-      name: "Appeal: Spring Member Appeal (2026-03-01)",
-      raised: 250.0,
-      status: "completed",
-      ask_amount: 250.0,
-      assigned_to: null,
-      custom_fields: [],
-      custom_attrs: [],
-      created_at: "2026-03-01T10:00:00Z",
-      updated_at: "2026-03-22T10:00:00Z",
-    },
-    {
-      id: 480102,
-      constituent_id: 1200502,
-      constituent_name: "Okonkwo, Daniel",
-      appeal_id: 3302,
-      name: "Appeal: Spring Member Appeal (2026-03-01)",
-      raised: 0.0,
-      status: "open",
-      ask_amount: 500.0,
-      assigned_to: null,
-      custom_fields: [],
-      custom_attrs: [],
-      created_at: "2026-03-01T10:00:00Z",
-      updated_at: "2026-03-01T10:00:00Z",
-    },
-  ],
-};
-
 /**
  * Awards. In LGL these are gifts whose gift_type is "Pledge"; the stock gift
  * category "Grant" (under that type) is what distinguishes a grant award from
@@ -291,7 +182,6 @@ const PLEDGE_GIFTS = [
 const RESPONSES: Record<string, unknown[]> = {
   gift_types: GIFT_TYPES,
   campaigns: CAMPAIGNS,
-  appeals: APPEALS,
   "gifts/search": PLEDGE_GIFTS,
 };
 
@@ -301,11 +191,6 @@ const RESPONSES: Record<string, unknown[]> = {
  * a path added without a fixture cannot silently report zero grants.
  */
 export function lglFixture(path: string, params: URLSearchParams): unknown[] | null {
-  const requests = path.match(/^appeals\/(\d+)\/appeal_requests$/);
-  if (requests) {
-    return APPEAL_REQUESTS[Number(requests[1])] ?? [];
-  }
-
   const items = RESPONSES[path];
   if (!items) return null;
 

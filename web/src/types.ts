@@ -32,7 +32,7 @@ export interface FundsSnapshot {
 export type FunnelStatus = "ok" | "unavailable";
 
 export interface FunnelStage {
-  key: "applied" | "pledged" | "received" | "outstanding";
+  key: "pledged" | "received" | "outstanding";
   label: string;
   status: FunnelStatus;
   amount: number | null;

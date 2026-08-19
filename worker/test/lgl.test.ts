@@ -138,7 +138,9 @@ describe("reimbursable status", () => {
     expect(readReimbursable({ custom_fields: [{ name: "Reimbursable", values: [{ name: "No" }] }] })).toBe(
       "not_reimbursable",
     );
-    // Appeal requests carry custom_attrs as well as custom_fields.
+    // LGL exposes custom_attrs alongside custom_fields, so both are read. The
+    // field is unpopulated in HPIC's LGL today; reading both is what lets
+    // populating it later light the feature up with no code change.
     expect(readReimbursable({ custom_attrs: [{ key: "reimbursable", value: "true" }] })).toBe(
       "reimbursable",
     );
@@ -169,11 +171,6 @@ describe("record counts and scoping", () => {
     // discrepancy long before anyone would notice a total being low.
     const snapshot = await getGrants(fixtureEnv({ LGL_GRANT_CAMPAIGN_IDS: "901" }));
 
-    expect(stage(snapshot, "applied")).toMatchObject({
-      status: "ok",
-      amount: 1175000,
-      recordCount: 3,
-    });
     expect(stage(snapshot, "pledged")).toMatchObject({
       status: "ok",
       amount: 960000,
@@ -182,28 +179,25 @@ describe("record counts and scoping", () => {
   });
 
   it("flags an unscoped read instead of passing donor activity off as grants", async () => {
-    // With no grant campaign configured, the figures cover every appeal ask and
-    // pledge in LGL — including individual donors. That is a defensible
+    // With no grant campaign configured, the figures cover every pledge in LGL
+    // — including individual donors' multi-year pledges. That is a defensible
     // prototype state, but only if it is stated.
     const snapshot = await getGrants(fixtureEnv());
 
     expect(snapshot.unscoped).toBe(true);
-    expect(stage(snapshot, "applied").recordCount).toBe(5);
-    expect(stage(snapshot, "applied").note).toMatch(/not scoped to grants/i);
+    expect(stage(snapshot, "pledged").recordCount).toBe(4);
     expect(stage(snapshot, "pledged").note).toMatch(/not scoped to grants/i);
 
     const scoped = await getGrants(fixtureEnv({ LGL_GRANT_CAMPAIGN_IDS: "901" }));
     expect(scoped.unscoped).toBe(false);
-    expect(stage(scoped, "applied").note).toBeUndefined();
+    expect(stage(scoped, "pledged").recordCount).toBe(3);
+    expect(stage(scoped, "pledged").note).toBeUndefined();
   });
 });
 
 describe("reads against LGL", () => {
   function standardRoutes() {
     routes["gift_types"] = () => page(GIFT_TYPES);
-    routes["appeals"] = () => page([{ id: 3301, name: "Rebuild Grants", campaign_id: 901 }]);
-    routes["appeals/3301/appeal_requests"] = () =>
-      page([{ id: 1, ask_amount: 500000, status: "submitted" }]);
     routes["gifts/search"] = () =>
       page([{ id: 9, gift_type_id: 7, received_amount: 400000, custom_fields: [] }]);
   }
@@ -245,30 +239,27 @@ describe("reads against LGL", () => {
 
   it("does not report the connection as ok when LGL rejects the key", async () => {
     routes["gift_types"] = () => new Response("Unauthorized", { status: 401 });
-    routes["appeals"] = () => new Response("Unauthorized", { status: 401 });
 
     const snapshot = await getGrants(liveEnv());
 
     expect(snapshot.connection).toBe("unavailable");
-    expect(stage(snapshot, "applied").status).toBe("unavailable");
     expect(stage(snapshot, "pledged").status).toBe("unavailable");
-    expect(stage(snapshot, "applied").note).toMatch(/rejected the API key/i);
+    expect(stage(snapshot, "pledged").note).toMatch(/rejected the API key/i);
   });
 
-  it("still shows the awards when the applications read fails", async () => {
-    // Graceful degradation: one failing source must not blank the panel.
+  it("never asks LGL for applications", async () => {
+    // The funnel starts at money awarded or promised, not money requested
+    // (Alex, 2026-08-14). Applications still live in LGL as appeal_requests;
+    // reading them is simply not this tool's job. Pinned as a test because the
+    // /appeals enumeration is easy to reintroduce while adding a later stage,
+    // and it was also the most expensive part of the page walk.
     standardRoutes();
-    routes["appeals"] = () => new Response("Server error", { status: 500 });
+    await getGrants(liveEnv({ LGL_GRANT_CAMPAIGN_IDS: "901" }));
 
-    const snapshot = await getGrants(liveEnv());
-
-    expect(stage(snapshot, "applied").status).toBe("unavailable");
-    expect(stage(snapshot, "pledged")).toMatchObject({
-      status: "ok",
-      amount: 400000,
-      recordCount: 1,
-    });
-    expect(snapshot.connection).toBe("ok");
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) {
+      expect(call.url).not.toMatch(/appeal/i);
+    }
   });
 
   it("suppresses a total it could not read to the end", async () => {

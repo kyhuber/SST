@@ -115,11 +115,6 @@ button.link {
   margin: 1.25rem 0;
 }
 
-/* The four funnel stages: Applied → Pledged → Received → Outstanding. */
-.cards-4 {
-  grid-template-columns: repeat(4, 1fr);
-}
-
 .card {
   background: #fff;
   border: 1px solid var(--line);

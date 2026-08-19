@@ -1,11 +1,16 @@
 /**
- * The Phase 2 grant funnel: Applied → Pledged → Received → Outstanding.
+ * The Phase 2 grant funnel: Pledged → Received → Outstanding.
  *
- * Two of those four render as "Not shown" against live data, and that is the
- * intended behaviour rather than an unfinished panel. Received and Outstanding
- * are both defined in terms of a pledge's amount due, and Little Green Light's
- * REST API exposes no such field. The stage carries the reason with it, so the
- * board reads why a figure is missing instead of wondering whether it is zero.
+ * It starts at Pledged deliberately. This tool covers money awarded or
+ * promised, not money requested, so grant applications are out of scope
+ * (confirmed with Alex, 2026-08-14) — their absence is a decision rather than
+ * an unbuilt stage.
+ *
+ * Two of the three render as "Not shown" against live data, and that is also
+ * intended rather than an unfinished panel. Received and Outstanding are both
+ * defined in terms of a pledge's amount due, and Little Green Light's REST API
+ * exposes no such field. The stage carries the reason with it, so the board
+ * reads why a figure is missing instead of wondering whether it is zero.
  */
 
 import { formatRetrievedAt, recordCountLabel, usd } from "./format";
@@ -73,13 +78,13 @@ export function GrantFunnelView({ snapshot }: { snapshot: GrantSnapshot }) {
       {snapshot.unscoped ? (
         <p className="banner banner-warn">
           <strong>Not scoped to grants.</strong> No grant campaign or gift category is
-          configured, so these figures count every appeal ask and pledge in Little Green
-          Light — individual donor activity included. Set{" "}
+          configured, so these figures count every pledge in Little Green Light —
+          individual donor activity included. Set{" "}
           <code>LGL_GRANT_CAMPAIGN_IDS</code> on the Worker to narrow them.
         </p>
       ) : null}
 
-      <div className="cards cards-4">
+      <div className="cards">
         {snapshot.stages.map((stage) => (
           <StageCard key={stage.key} stage={stage} />
         ))}

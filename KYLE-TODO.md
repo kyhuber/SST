@@ -107,7 +107,9 @@ Not yours to do, but worth tracking so the wait is visible.
 - Rotated `ACCESS_PASSPHRASE` after it was exposed in a screenshot (2026-08-14)
 - Verified the token refresh against live Intuit (2026-08-14)
 - Added the Worker test suite; `cd worker && npm test`
-- Narrowed the grant funnel to start at pledges, per Alex
+- Narrowed the grant funnel to start at pledges, per Alex. The spec changed
+  first; the `appeal_request` reads and the `/appeals` enumeration came out of
+  the Worker, tests, fixtures, and UI on 2026-08-18.
 
 ## Decisions on record
 

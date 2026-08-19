@@ -38,8 +38,8 @@ export interface Env {
   /**
    * Which LGL records count as grant activity, as comma-separated IDs.
    *
-   * LGL holds every appeal ask and every pledge, most of which are individual
-   * donor activity rather than grants. Without a scope, a "grant funnel" would
+   * LGL holds every pledge, most of which are individual donor activity
+   * rather than grants. Without a scope, a "grant funnel" would
    * quietly be an "everything funnel". Unset is a valid state — the figures
    * still render, but each one carries a visible caveat saying it is not
    * scoped to grants.
@@ -90,8 +90,12 @@ export interface FundsSnapshot {
 /** Why a funnel figure has no number, when it has no number. */
 export type FunnelStatus = "ok" | "unavailable";
 
+/**
+ * The funnel starts at Pledged, not at an application. This tool covers money
+ * awarded or promised, not money requested (confirmed with Alex, 2026-08-14).
+ */
 export interface FunnelStage {
-  key: "applied" | "pledged" | "received" | "outstanding";
+  key: "pledged" | "received" | "outstanding";
   label: string;
   status: FunnelStatus;
   /** Null unless status is "ok". */
@@ -132,8 +136,8 @@ export interface GrantSnapshot {
    */
   awardsByReimbursable: ReimbursableBucket[];
   /**
-   * True when no grant scope is configured, so the figures cover all LGL
-   * appeal asks and pledges rather than grants specifically.
+   * True when no grant scope is configured, so the figures cover every pledge
+   * in LGL rather than grants specifically.
    */
   unscoped: boolean;
   /** LGL's own response clock, never the browser or Worker clock. */

@@ -9,12 +9,9 @@
  * rather than assumed, and the result differs from the build spec in a way
  * that changes what this dashboard can honestly show:
  *
- * - **There is no `/goals` endpoint and no `/pledges` endpoint.** The
- *   documented resources are appeals, appeal_requests, gifts, gift_types,
- *   gift_categories, campaigns, funds, and constituents.
- * - The spec's **Goal** — an application carrying an ask amount and a request
- *   status — is an **appeal_request**: `ask_amount`, `status`, `raised`, plus
- *   both `custom_fields` and `custom_attrs`.
+ * - **There is no `/pledges` endpoint.** The documented resources are appeals,
+ *   appeal_requests, gifts, gift_types, gift_categories, campaigns, funds, and
+ *   constituents.
  * - The spec's **Pledge** — an award — is a **gift whose gift_type is
  *   "Pledge"**. LGL's stock gift categories include "Grant" under exactly that
  *   type, so this is the intended modelling, not a workaround.
@@ -29,10 +26,19 @@
  * read, the honest output is no number and a stated reason — the same rule
  * that suppresses total cash when one account fails to read.
  *
+ * ## Applications are out of scope
+ *
+ * This funnel starts at money awarded or promised, not money requested
+ * (confirmed with Alex, 2026-08-14). LGL does track applications — they are
+ * `appeal_request` records hanging off an appeal — and tracking them is a real
+ * need, simply not this tool's. They were read here once; the reads and the
+ * `/appeals` enumeration behind them were removed rather than left dormant.
+ * Their absence is a decision, not an oversight.
+ *
  * ## Scoping
  *
- * LGL holds every appeal ask and every pledge, the overwhelming majority of
- * which are individual donor activity. `LGL_GRANT_CAMPAIGN_IDS` and
+ * LGL holds every pledge, the overwhelming majority of which are individual
+ * donor activity rather than grants. `LGL_GRANT_CAMPAIGN_IDS` and
  * `LGL_GRANT_GIFT_CATEGORY_IDS` narrow the reads to grant activity. Both unset
  * is a valid prototype state, but it makes the figures an "everything funnel"
  * rather than a grant funnel, so the snapshot flags itself as unscoped and the
@@ -116,24 +122,6 @@ export interface LglGift {
   received_date?: string | null;
   parent_gift_id?: number | null;
   custom_fields?: LglCustomField[] | null;
-}
-
-export interface LglAppeal {
-  id: number;
-  name?: string | null;
-  campaign_id?: number | null;
-  campaign_name?: string | null;
-}
-
-export interface LglAppealRequest {
-  id: number;
-  appeal_id?: number | null;
-  name?: string | null;
-  ask_amount?: number | null;
-  raised?: number | null;
-  status?: string | null;
-  custom_fields?: LglCustomField[] | null;
-  custom_attrs?: LglCustomAttr[] | null;
 }
 
 interface LglGiftType {
@@ -351,36 +339,6 @@ async function pledgeGiftTypeId(env: Env): Promise<{ ok: true; id: number } | { 
   return { ok: true, id: pledge.id };
 }
 
-/** Grant applications: every appeal_request under the in-scope appeals. */
-async function readApplications(env: Env): Promise<ReadResult<LglAppealRequest>> {
-  const campaignIds = parseIds(env.LGL_GRANT_CAMPAIGN_IDS);
-
-  const appeals = await getAll<LglAppeal>(env, "appeals");
-  if (!appeals.ok) return appeals;
-
-  // The appeals endpoint documents no campaign filter, so scope is applied here.
-  const inScope =
-    campaignIds.length === 0
-      ? appeals.items
-      : appeals.items.filter(
-          (appeal) => appeal.campaign_id != null && campaignIds.includes(appeal.campaign_id),
-        );
-
-  const requests: LglAppealRequest[] = [];
-  let complete = appeals.complete;
-  let date = appeals.date;
-
-  for (const appeal of inScope) {
-    const result = await getAll<LglAppealRequest>(env, `appeals/${appeal.id}/appeal_requests`);
-    if (!result.ok) return result;
-    requests.push(...result.items);
-    complete &&= result.complete;
-    date ??= result.date;
-  }
-
-  return { ok: true, items: requests, complete, date };
-}
-
 /** Awards: gifts whose gift type is "Pledge", narrowed to grant activity. */
 async function readAwards(env: Env): Promise<ReadResult<LglGift>> {
   const giftType = await pledgeGiftTypeId(env);
@@ -463,7 +421,6 @@ export async function getGrants(env: Env): Promise<GrantSnapshot> {
   if (!fixture && !env.LGL_API_KEY) {
     return {
       stages: [
-        unavailableStage("applied", "Applied", "No Little Green Light API key configured."),
         unavailableStage("pledged", "Pledged", "No Little Green Light API key configured."),
         unavailableStage("received", "Received", AMOUNT_DUE_NOTE),
         unavailableStage("outstanding", "Outstanding", AMOUNT_DUE_NOTE),
@@ -478,14 +435,9 @@ export async function getGrants(env: Env): Promise<GrantSnapshot> {
     };
   }
 
-  // Read both halves independently so one failing source still renders the
-  // other, rather than blanking the whole panel.
-  const [applications, awards] = await Promise.all([readApplications(env), readAwards(env)]);
+  const awards = await readAwards(env);
 
   const stages: FunnelStage[] = [
-    toStage("applied", "Applied", applications, (request) =>
-      typeof request.ask_amount === "number" ? request.ask_amount : 0,
-    ),
     toStage("pledged", "Pledged", awards, giftAmount),
     // Both of these depend on a field LGL does not expose. See AMOUNT_DUE_NOTE.
     unavailableStage("received", "Received", AMOUNT_DUE_NOTE),
@@ -500,8 +452,7 @@ export async function getGrants(env: Env): Promise<GrantSnapshot> {
   }
 
   const anyOk = stages.some((stage) => stage.status === "ok");
-  const retrievedAt =
-    (applications.ok ? applications.date : null) ?? (awards.ok ? awards.date : null);
+  const retrievedAt = awards.ok ? awards.date : null;
 
   return {
     stages,
