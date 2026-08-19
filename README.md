@@ -4,8 +4,9 @@ A read-only, board-facing financial dashboard for the Highland Park Improvement
 Club. It answers three questions: how much cash do we have, how much grant money
 is applied for and owed to us, and can we afford the next construction phase.
 
-**Phase 1 (this build): cash on hand from QuickBooks Online.** Grant funnel
-(Little Green Light) and phase readiness follow in Phases 2 and 3.
+**Phase 1: cash on hand from QuickBooks Online — done.**
+**Phase 2: the Little Green Light grant funnel — a working slice, on fixture
+data.** Phase readiness follows in Phase 3.
 
 This tool never writes to QuickBooks, Little Green Light, or any bank. Every
 call it makes is a GET.
@@ -69,13 +70,19 @@ rather than against a stand-in for the Durable Object storage API. They need no
 credentials and make no network calls; outbound `fetch` is stubbed, so nothing
 reaches Intuit.
 
-What they cover is the OAuth refresh path in `worker/src/tokens.ts`, because it
-is the only code here that can disconnect the dashboard in a way that requires a
-human to sign in to QuickBooks and re-consent. Three of those cases cannot be
-reached by running against the real Intuit at all: you cannot force
+`test/tokens.test.ts` covers the OAuth refresh path in `worker/src/tokens.ts`,
+because it is the only code here that can disconnect the dashboard in a way that
+requires a human to sign in to QuickBooks and re-consent. Three of those cases
+cannot be reached by running against the real Intuit at all: you cannot force
 `invalid_grant` without revoking the live grant, you cannot make Intuit
 unreachable on demand, and nothing in normal operation puts two refreshes in
 flight at the same time.
+
+`test/lgl.test.ts` covers the grant funnel. Most of what it pins down is where
+the code must *refuse* to show a number: the amount-due gap, an absent
+reimbursable field reading as unknown rather than as spendable, a page walk that
+did not reach the end, and a rejected API key. It also checks that every request
+to LGL is a GET.
 
 `npm run typecheck` checks `src/` and `test/` both.
 
@@ -264,9 +271,65 @@ allowlist, which gives per-person access. When that happens, delete
 `worker/src/auth.ts`, remove its two call sites, and drop
 `web/src/PassphraseGate.tsx`. Nothing else changes.
 
+## Connecting Little Green Light
+
+The grant funnel runs on recorded fixture data until a key is configured, so it
+can be reviewed before anyone issues one:
+
+```bash
+printf '%s' "<key>" | npx wrangler secret put LGL_API_KEY
+```
+
+Issue a **fresh key scoped to this tool** rather than reusing the membership
+lookup tool's key, so either can be revoked without breaking the other. Then set
+`LGL_MODE = "live"` in `worker/wrangler.toml` and redeploy.
+
+### Scoping the funnel to grants
+
+LGL holds every appeal ask and every pledge, most of which are individual donor
+activity rather than grants. Two optional `[vars]` narrow the reads:
+
+| Variable | Meaning |
+| --- | --- |
+| `LGL_GRANT_CAMPAIGN_IDS` | Comma-separated campaign IDs holding grant activity |
+| `LGL_GRANT_GIFT_CATEGORY_IDS` | Comma-separated gift category IDs identifying grant awards (LGL ships a stock "Grant" category) |
+
+Leaving both unset is a valid state, but the figures then cover all LGL activity.
+The dashboard says so in a banner rather than implying they are grants-only.
+Find the IDs at `/api/v1/campaigns` and `/api/v1/gift_categories`.
+
+## Why "Received" and "Outstanding" say "Not shown"
+
+This is deliberate, and it is the most important thing to understand about the
+grant panel.
+
+The build spec defines the funnel as Applied → Pledged → Received → Outstanding,
+with Received and Outstanding both derived from a pledge's **amount due**, read
+directly from LGL rather than recomputed. Checked against
+[LGL's API documentation](https://api.littlegreenlight.com/api-docs/static.html)
+on 2026-08-14, **the REST API exposes no amount-due or balance field on any
+object** — the strings `amount_due` and `balance` do not appear in the docs at
+all. There is also no `/goals` or `/pledges` endpoint: an application is an
+`appeal_request`, and an award is a gift whose gift type is "Pledge".
+
+So Applied and Pledged come from the system of record, and the other two report
+that they cannot. Deriving amount due by summing the payment gifts linked to a
+pledge is technically possible, but the spec rules it out — LGL maintains the
+real figure internally and recomputing it invites drift.
+
+Closing this needs a decision, not more code:
+
+1. Ask LGL support whether a pledge balance is reachable through the API,
+   perhaps through a field the public docs omit; or
+2. Accept a derived figure, clearly labeled as derived rather than read.
+
+Until then the panel says what it does not know, which is the same rule that
+suppresses total cash when one account fails to read.
+
 ## Not yet built
 
-Phase 2 (Little Green Light grant funnel, restricted/unrestricted breakdown,
-reimbursable split) and Phase 3 (phase readiness against the Dry-in target
-cost). See `hpic-sst-build-spec-v2.md` for the full specification and the
-go-live checklist.
+The rest of Phase 2 — the restricted/unrestricted breakdown by campaign and
+fund, and the detail list of individual applications and awards — and Phase 3
+(phase readiness against the Dry-in target cost). See
+`hpic-sst-build-spec-v2.md` for the full specification and the go-live
+checklist.

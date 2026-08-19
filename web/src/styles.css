@@ -26,8 +26,12 @@ body {
 }
 
 h1 {
-  font-size: 1.75rem;
+  font-size: 1.35rem;
   margin: 0 0 0.25rem;
+}
+
+h1.page-title {
+  font-size: 1.75rem;
 }
 
 h2 {
@@ -98,11 +102,22 @@ button.link {
   padding: 0 1.5rem;
 }
 
+/* Each data source gets its own panel, so one failing source degrades in
+   place rather than taking the page with it. */
+.panel {
+  margin: 0 0 3rem;
+}
+
 .cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
-  margin: 2rem 0;
+  margin: 1.25rem 0;
+}
+
+/* The four funnel stages: Applied → Pledged → Received → Outstanding. */
+.cards-4 {
+  grid-template-columns: repeat(4, 1fr);
 }
 
 .card {
@@ -133,6 +148,65 @@ button.link {
   margin: 0.6rem 0 0;
 }
 
+/* Record counts sit directly under the total they qualify. */
+.count {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  margin: 0.35rem 0 0;
+}
+
+/* --- Reimbursable breakdown --- */
+
+.subpanel {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin: 1.5rem 0;
+}
+
+.breakdown {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0 0;
+}
+
+.breakdown th,
+.breakdown td {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.breakdown thead th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.breakdown tbody th {
+  font-weight: 500;
+}
+
+.breakdown .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.breakdown .muted-cell {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* Unknown reimbursable status is called out, not left to blend in: an award
+   that might be cost-reimbursement must never read as spendable. */
+.breakdown .row-unknown {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
 .banner {
   padding: 0.75rem 1rem;
   border-radius: 6px;
@@ -154,15 +228,26 @@ button.link {
   color: var(--error);
 }
 
-footer {
+footer,
+.panel-footer {
   border-top: 1px solid var(--line);
   padding-top: 1rem;
   font-size: 0.85rem;
   color: var(--muted);
 }
 
-footer p {
+footer p,
+.panel-footer p {
   margin: 0 0 0.5rem;
+}
+
+/* The data-completeness caveat. Removed at go-live, once the development
+   committee confirms LGL reconciliation is complete. */
+.caveat {
+  background: var(--warn-bg);
+  color: var(--warn);
+  padding: 0.6rem 0.8rem;
+  border-radius: 6px;
 }
 
 code {

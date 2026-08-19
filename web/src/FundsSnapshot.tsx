@@ -1,29 +1,5 @@
+import { formatRetrievedAt, usd } from "./format";
 import type { AccountSnapshot, FundsSnapshot } from "./types";
-
-const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-
-/**
- * Formats the timestamp QuickBooks reported for the data itself.
- *
- * This is never the current clock. A dashboard that always shows today's date
- * regardless of data freshness is worse than showing no date at all.
- */
-function formatRetrievedAt(iso: string | null): string {
-  if (!iso) return "No data retrieved";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "Retrieval time unavailable";
-  // Explicit component options rather than dateStyle/timeStyle: Intl rejects
-  // combining those shorthands with timeZoneName, and the zone matters here.
-  return date.toLocaleString("en-US", {
-    timeZone: "America/Los_Angeles",
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  });
-}
 
 function AccountCard({ account }: { account: AccountSnapshot }) {
   return (
@@ -41,19 +17,10 @@ function AccountCard({ account }: { account: AccountSnapshot }) {
   );
 }
 
-export function FundsSnapshotView({
-  snapshot,
-  onRetry,
-}: {
-  snapshot: FundsSnapshot;
-  onRetry: () => void;
-}) {
+export function FundsSnapshotView({ snapshot }: { snapshot: FundsSnapshot }) {
   return (
-    <main className="dashboard">
-      <header>
-        <h1>Cash on hand</h1>
-        <p className="muted">Highland Park Improvement Club — board financial snapshot</p>
-      </header>
+    <section className="panel">
+      <h1>Cash on hand</h1>
 
       {snapshot.connection === "fixture" ? (
         <p className="banner banner-warn">
@@ -94,7 +61,7 @@ export function FundsSnapshotView({
         </section>
       </div>
 
-      <footer>
+      <div className="panel-footer">
         <p>
           <strong>Source:</strong> {snapshot.source}. This is the QuickBooks book balance —
           it reflects transactions entered in QuickBooks, not the live bank-feed balance,
@@ -104,12 +71,7 @@ export function FundsSnapshotView({
           <strong>Data retrieved from QuickBooks:</strong> {formatRetrievedAt(snapshot.retrievedAt)}
           {snapshot.cached ? " (served from a cached read, refreshed at least every 15 minutes)" : ""}
         </p>
-        <p>
-          <button type="button" className="link" onClick={onRetry}>
-            Reload
-          </button>
-        </p>
-      </footer>
-    </main>
+      </div>
+    </section>
   );
 }
