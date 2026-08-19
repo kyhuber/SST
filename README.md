@@ -286,8 +286,8 @@ lookup tool's key, so either can be revoked without breaking the other. Then set
 
 ### Scoping the funnel to grants
 
-LGL holds every appeal ask and every pledge, most of which are individual donor
-activity rather than grants. Two optional `[vars]` narrow the reads:
+LGL holds every pledge, most of which are individual donor activity rather than
+grants. Two optional `[vars]` narrow the reads:
 
 | Variable | Meaning |
 | --- | --- |
@@ -303,28 +303,39 @@ Find the IDs at `/api/v1/campaigns` and `/api/v1/gift_categories`.
 This is deliberate, and it is the most important thing to understand about the
 grant panel.
 
-The build spec defines the funnel as Applied → Pledged → Received → Outstanding,
-with Received and Outstanding both derived from a pledge's **amount due**, read
-directly from LGL rather than recomputed. Checked against
+The funnel is Pledged → Received → Outstanding. **Pledged** comes from LGL: an
+award is a gift whose gift type is "Pledge". That figure works. The other two
+are not missing LGL data — they are deliberately sourced elsewhere.
+
+An earlier draft defined both in terms of a pledge's **amount due**, read from
+LGL. That field does not exist: checked against
 [LGL's API documentation](https://api.littlegreenlight.com/api-docs/static.html)
-on 2026-08-14, **the REST API exposes no amount-due or balance field on any
-object** — the strings `amount_due` and `balance` do not appear in the docs at
-all. There is also no `/goals` or `/pledges` endpoint: an application is an
-`appeal_request`, and an award is a gift whose gift type is "Pledge".
+on 2026-08-14, the REST API exposes no amount-due or balance field on any
+object. But the definition did not change because of that limitation. It changed
+because **Received and Outstanding are cash facts, and QuickBooks is the system
+of record for cash** (decided 2026-08-19):
 
-So Applied and Pledged come from the system of record, and the other two report
-that they cannot. Deriving amount due by summing the payment gifts linked to a
-pledge is technically possible, but the spec rules it out — LGL maintains the
-real figure internally and recomputing it invites drift.
+    Received     = grant cash actually deposited, per QuickBooks
+    Outstanding  = Pledged (LGL) − Received (QuickBooks)
+    Spent        = expenses booked against the grant, per QuickBooks
 
-Closing this needs a decision, not more code:
+The reimbursement case makes this unavoidable. To invoice a funder on a
+cost-reimbursement award, HPIC must know what it **spent** against that grant,
+and spending exists only in QuickBooks. No LGL field could ever answer that, so
+asking LGL support about a pledge balance was dropped as the wrong question.
 
-1. Ask LGL support whether a pledge balance is reachable through the API,
-   perhaps through a field the public docs omit; or
-2. Accept a derived figure, clearly labeled as derived rather than read.
+What this needs instead is a **bookkeeping practice**: QuickBooks must carry a
+dimension — a class, customer, or project — tying each deposit and expense to a
+specific grant, applied consistently at entry time. The Worker reads Account
+entities and book balances today and nothing grant-level, so this is real work,
+not a config flip. The open design decision is what ties a QuickBooks class to
+an LGL award: a naming convention, a customer or project per grant, or an
+explicit mapping in Worker config.
 
-Until then the panel says what it does not know, which is the same rule that
-suppresses total cash when one account fails to read.
+Until that exists the panel says what it does not know, which is the same rule
+that suppresses total cash when one account fails to read. A deposit coded to no
+class is invisible to the reconciliation, so incomplete attribution must render
+as unavailable rather than as a total that is quietly low.
 
 ## Not yet built
 

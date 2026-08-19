@@ -19,12 +19,27 @@
  * - **No amount-due or balance field exists on any documented object.** The
  *   strings `amount_due` and `balance` do not appear in the API docs at all.
  *
- * That last point decides the shape of this file. Received and Outstanding are
- * both defined in terms of amount due, and the spec is explicit that it must be
- * read from LGL rather than recomputed by summing payment gifts, because LGL
- * maintains the real figure and recomputing invites drift. With no field to
- * read, the honest output is no number and a stated reason — the same rule
- * that suppresses total cash when one account fails to read.
+ * That last point used to decide the shape of this file, when Received and
+ * Outstanding were defined in terms of amount due. They no longer are.
+ *
+ * ## Received and Outstanding are not LGL's to answer
+ *
+ * As of 2026-08-19 this file reads one figure — Pledged, the awarded amount.
+ * Received and Outstanding are cash facts, and QuickBooks is the system of
+ * record for cash:
+ *
+ *     Received     = grant cash actually deposited, per QuickBooks
+ *     Outstanding  = Pledged (LGL) − Received (QuickBooks)
+ *
+ * The missing LGL field is not why. The reimbursement case is: invoicing a
+ * funder on a cost-reimbursement award requires knowing what HPIC *spent*, and
+ * spending exists only in QuickBooks. No LGL field could answer that.
+ *
+ * So the two stages still render "Not shown", but for a different reason than
+ * they once did, and the note says so. Building them needs QuickBooks to carry
+ * a class, customer, or project identifying each grant — a bookkeeping practice,
+ * not a field this file is missing. Do not reintroduce a derived amount-due
+ * here.
  *
  * ## Applications are out of scope
  *
@@ -370,14 +385,16 @@ function unavailableStage(
  * The note carried by Received and Outstanding.
  *
  * Kept as one string in one place because it is the single most important
- * caveat in Phase 2: these are not slow or missing numbers, they are numbers
- * the system of record does not expose.
+ * caveat in Phase 2, and because it is read by the board rather than by a
+ * developer. It must state the real reason: these figures are not late, and
+ * they are not blocked on Little Green Light.
  */
-export const AMOUNT_DUE_NOTE =
-  "Not shown. This figure is defined as the pledge amount due, and Little Green Light's " +
-  "REST API exposes no amount-due or balance field on any object. Deriving it by summing " +
-  "payment gifts is possible but rejected by the spec: LGL maintains the real figure " +
-  "internally, and recomputing it here would drift from the system of record.";
+export const RECONCILIATION_NOTE =
+  "Not shown. This figure is not a Little Green Light number: the award amount comes from " +
+  "Little Green Light, but cash received against it is an accounting fact, and QuickBooks " +
+  "is the system of record for cash. Reconciling the two is not built yet — it needs " +
+  "QuickBooks to identify each grant on the transactions belonging to it. Nothing here is " +
+  "estimated in the meantime.";
 
 const UNSCOPED_NOTE =
   "Not scoped to grants — no grant campaign or gift category is configured, so this counts " +
@@ -422,8 +439,8 @@ export async function getGrants(env: Env): Promise<GrantSnapshot> {
     return {
       stages: [
         unavailableStage("pledged", "Pledged", "No Little Green Light API key configured."),
-        unavailableStage("received", "Received", AMOUNT_DUE_NOTE),
-        unavailableStage("outstanding", "Outstanding", AMOUNT_DUE_NOTE),
+        unavailableStage("received", "Received", RECONCILIATION_NOTE),
+        unavailableStage("outstanding", "Outstanding", RECONCILIATION_NOTE),
       ],
       awardsByReimbursable: [],
       unscoped,
@@ -439,9 +456,9 @@ export async function getGrants(env: Env): Promise<GrantSnapshot> {
 
   const stages: FunnelStage[] = [
     toStage("pledged", "Pledged", awards, giftAmount),
-    // Both of these depend on a field LGL does not expose. See AMOUNT_DUE_NOTE.
-    unavailableStage("received", "Received", AMOUNT_DUE_NOTE),
-    unavailableStage("outstanding", "Outstanding", AMOUNT_DUE_NOTE),
+    // Both of these come from QuickBooks, not here. See RECONCILIATION_NOTE.
+    unavailableStage("received", "Received", RECONCILIATION_NOTE),
+    unavailableStage("outstanding", "Outstanding", RECONCILIATION_NOTE),
   ];
 
   if (unscoped) {

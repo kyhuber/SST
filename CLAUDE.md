@@ -74,16 +74,34 @@ read this before touching `worker/src/lgl.ts`:
 | Spec says | API actually has |
 | --- | --- |
 | `Pledge` object | No `/pledges` endpoint. An award is a **gift whose `gift_type` is "Pledge"** — the stock gift category "Grant" sits under exactly that type. |
-| Pledge `amount due` | **Does not exist.** The strings `amount_due` and `balance` appear nowhere in the API docs. |
+| Pledge `amount due` | **Does not exist.** The strings `amount_due` and `balance` appear nowhere in the API docs. No longer load-bearing — see below. |
 
-That last row is the blocker. **Received and Outstanding are both defined in
-terms of amount due, so both render "Not shown" with the reason attached.** The
-spec forbids recomputing amount due by summing payment gifts (LGL maintains the
-real figure; recomputing drifts), and there is no field to read instead. This is
-deliberate, not unfinished — do not "fix" it by summing `parent_gift_id`
-children without deciding that question first. Options are to ask LGL support
-whether a balance field is reachable, or to accept a derived figure that is
-labeled as derived.
+**Received and Outstanding render "Not shown" today, but do not go looking for
+an LGL field to fix that.** As of 2026-08-19 they are no longer defined in terms
+of LGL at all. They are cash facts, and QuickBooks is the system of record for
+cash:
+
+    Received     = grant cash actually deposited, per QuickBooks
+    Outstanding  = Pledged (LGL) − Received (QuickBooks)
+    Spent        = expenses booked against the grant, per QuickBooks
+
+The reimbursement case is what settles it: invoicing a funder on a
+cost-reimbursement award requires knowing what HPIC **spent**, and spending
+exists only in QuickBooks. So asking LGL support about a balance field was
+dropped as the wrong question, not deferred.
+
+The real prerequisite is a **bookkeeping practice**: QuickBooks must carry a
+dimension — class, customer, or project — that ties a deposit or expense to a
+specific grant, applied consistently at entry time. Nothing in `worker/src/qbo.ts`
+reads any such dimension today; it reads Account entities and book balances
+only. (The `Classification` field there is the account-type filter for `Asset`,
+not a QuickBooks Class.)
+
+**Open decision, make it before building:** what ties a QuickBooks class to an
+LGL award — a naming convention, a customer/project per grant, or an explicit
+mapping in Worker config. And the Phase 1 completeness rule governs: a deposit
+coded to no class is invisible, so incomplete attribution renders unavailable
+rather than quietly low.
 
 Two more things that matter:
 
@@ -202,7 +220,8 @@ does not need it, and `wrangler.toml` is deliberately left alone.
   campaign/fund restriction breakdown, and the pledge detail list.
 - **Phase 3 — phase readiness: not started.** Needs the Dry-in target cost from
   the general contractor. Note that "spendable excludes unreceived reimbursable
-  awards" depends on the outstanding figure, which is currently unavailable.
+  awards" depends on the outstanding figure, which now depends on the QuickBooks
+  reconciliation rather than on anything in LGL.
 
 ## Hosting, and where it is going
 

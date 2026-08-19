@@ -7,10 +7,11 @@
  * an unbuilt stage.
  *
  * Two of the three render as "Not shown" against live data, and that is also
- * intended rather than an unfinished panel. Received and Outstanding are both
- * defined in terms of a pledge's amount due, and Little Green Light's REST API
- * exposes no such field. The stage carries the reason with it, so the board
- * reads why a figure is missing instead of wondering whether it is zero.
+ * intended rather than an unfinished panel. Received and Outstanding are cash
+ * facts reconciled against QuickBooks, not figures Little Green Light is asked
+ * for, and that reconciliation is not built yet. The stage carries the reason
+ * with it, so the board reads why a figure is missing instead of wondering
+ * whether it is zero.
  */
 
 import { formatRetrievedAt, recordCountLabel, usd } from "./format";

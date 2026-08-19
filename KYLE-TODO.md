@@ -30,24 +30,26 @@ project with no deadline.
       block it until the Worker is told. One line, one deploy.
       → `docs/runbook-migration.md` §3
 
-## Phase 2 — the blocker
+## Phase 2 — the open decision
 
-- [ ] **0. Ask LGL support how to read a pledge's outstanding balance.**
-      This is the most important open question in the project. **Received and
-      Outstanding cannot be shown at all right now** — the API docs expose no
-      `amount_due` or `balance` field on any object, and the spec forbids
-      recomputing it by summing payment gifts because LGL maintains the real
-      figure and recomputing drifts.
+- [ ] **0. Decide what ties a QuickBooks class to an LGL award.**
+      This replaces the old "ask LGL support about a pledge balance" item, which
+      was dropped on 2026-08-19 as the wrong question. Received and Outstanding
+      are cash facts and QuickBooks is the system of record for cash, so they
+      are reconciled from QuickBooks rather than read from LGL. The reimbursement
+      case settles it: invoicing a funder on a cost-reimbursement award requires
+      knowing what HPIC **spent**, and spending exists only in QuickBooks.
 
-      Outstanding split by reimbursable status is the single most
-      decision-relevant number on this dashboard. Until this is answered, the
-      funnel shows Pledged and nothing past it.
+      What is needed is a bookkeeping practice — QuickBooks carrying a class,
+      customer, or project that identifies the grant, applied consistently at
+      entry time. The decision to make first is which of those, and how it maps
+      to an LGL award: a naming convention, one customer or project per grant,
+      or an explicit mapping in Worker config.
 
-      Ask them: is there an API-reachable balance or amount-due on a pledge
-      gift, and if not, what is the intended way to get remaining balance for a
-      pledge? If the answer is "there isn't one," the fallback is a derived
-      figure clearly labeled as derived — but that is a decision to make
-      knowingly, not a default.
+      This is yours because it is a process change, not code. Everything
+      downstream depends on the key being applied the same way every time, and a
+      deposit coded to no class is invisible to the reconciliation — which by
+      this project's own rule must render as unavailable, not as a low number.
 
 ## Phase 2 prerequisites
 
@@ -118,6 +120,11 @@ Kept here so they are not re-litigated from memory.
 - **Grant applications are out of scope.** This tool starts at money awarded or
   promised. LGL goals still track applications; that is simply not this tool's
   job. (Alex, 2026-08-14)
+- **Received and Outstanding come from QuickBooks, not LGL.** LGL is
+  authoritative for what was awarded; QuickBooks is authoritative for cash
+  received and money spent. Asking LGL for an amount-due field was the wrong
+  question, so that item is closed rather than deferred. The work this creates
+  is a QuickBooks class discipline, tracked as item 0. (Kyle, 2026-08-19)
 - **Cloudflare stays on the personal account for now**, and transfers when Kyle
   steps back from the organization. GitHub moves to the org immediately because
   it hosts several tools other members should be able to reach.

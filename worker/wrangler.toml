@@ -81,9 +81,9 @@ LGL_MODE = "fixture"
 
 # Which LGL campaigns and gift categories hold grant activity, comma-separated.
 # Left unset deliberately until HPIC's real IDs are confirmed: LGL holds every
-# appeal ask and pledge, so without a scope these figures cover individual
-# donor activity too. The dashboard says so on screen rather than implying the
-# numbers are grants-only.
+# pledge, so without a scope these figures cover individual donor activity too.
+# The dashboard says so on screen rather than implying the numbers are
+# grants-only.
 #
 # LGL_GRANT_CAMPAIGN_IDS = ""
 # LGL_GRANT_GIFT_CATEGORY_IDS = ""

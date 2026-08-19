@@ -13,7 +13,7 @@
 
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AMOUNT_DUE_NOTE, getGrants, readReimbursable } from "../src/lgl";
+import { getGrants, readReimbursable, RECONCILIATION_NOTE } from "../src/lgl";
 import type { Env } from "../src/types";
 
 interface RecordedCall {
@@ -93,13 +93,12 @@ function stage(snapshot: Awaited<ReturnType<typeof getGrants>>, key: string) {
   return found;
 }
 
-describe("the amount-due gap", () => {
+describe("figures this file does not own", () => {
   it("reports Received and Outstanding as unavailable, with the reason", async () => {
-    // LGL's REST API exposes no amount-due or balance field on any object, and
-    // both of these figures are defined in terms of it. The spec forbids
-    // recomputing it by summing payment gifts. So the only honest output is no
-    // number plus a stated reason — and that must survive a healthy read, not
-    // just an error path.
+    // These are cash facts, and QuickBooks is the system of record for cash.
+    // Reconciling awards against it is not built, so the only honest output is
+    // no number plus a stated reason — and that must survive a healthy read,
+    // not just an error path.
     const snapshot = await getGrants(fixtureEnv());
 
     for (const key of ["received", "outstanding"]) {
@@ -107,8 +106,19 @@ describe("the amount-due gap", () => {
       expect(figure.status).toBe("unavailable");
       expect(figure.amount).toBeNull();
       expect(figure.recordCount).toBeNull();
-      expect(figure.note).toBe(AMOUNT_DUE_NOTE);
+      expect(figure.note).toBe(RECONCILIATION_NOTE);
     }
+  });
+
+  it("does not blame Little Green Light for them", async () => {
+    // The note is read by the board. Attributing these to an LGL limitation
+    // sends someone to ask LGL support a question that was already answered
+    // and dropped as the wrong one.
+    const snapshot = await getGrants(fixtureEnv());
+
+    const note = stage(snapshot, "received").note ?? "";
+    expect(note).toMatch(/QuickBooks/);
+    expect(note).not.toMatch(/amount.due|balance field/i);
   });
 });
 

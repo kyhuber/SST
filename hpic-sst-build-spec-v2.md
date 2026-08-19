@@ -42,18 +42,46 @@ unattended.
 HPIC's grant process maps directly onto LGL's native objects. This is the core
 domain model and the most important thing to get right:
 
-- **Pledge** — created when the grant is awarded. Carries an amount and,
-  importantly, an **amount due** field.
+- **Pledge** — created when the grant is awarded. Carries the awarded amount.
 - **Gift** — recorded when payment arrives, applied against the pledge.
 
-This produces the funnel with no derivation required:
+LGL is authoritative for **what was awarded**, and that is all this tool asks of
+it:
 
-    Pledged (pledge amounts)
-      → Received (pledge amount minus amount due)
-        → Outstanding (pledge amount due)
+    Pledged (pledge amounts, from LGL)
 
-Use LGL's `amount due` directly rather than summing gifts against pledges
-yourself. LGL already maintains it, and recomputing invites drift.
+**Received and Outstanding do not come from LGL** (decided 2026-08-19). An
+earlier draft of this spec defined them in terms of a pledge's `amount due`.
+LGL's REST API exposes no such field — the strings `amount_due` and `balance`
+appear nowhere in its documentation — but that limitation is not why the
+definition changed. It changed because those are cash facts, and QuickBooks is
+the system of record for cash:
+
+    Received     = grant cash actually deposited, per QuickBooks
+    Outstanding  = Pledged (LGL) − Received (QuickBooks)
+    Spent        = expenses booked against the grant, per QuickBooks
+
+Asking the fundraising CRM for a cash figure the accounting system already owns
+is the wrong question. The reimbursement case settles it: to invoice a funder on
+a cost-reimbursement award, HPIC must know **what it spent** against that grant,
+and spending exists only in QuickBooks. LGL could never answer that, whatever
+its API exposed.
+
+**This moves the hard part from an API limitation to a bookkeeping practice.**
+Attributing a deposit or an expense to a specific grant requires QuickBooks to
+carry a dimension that identifies it — a class, customer, or project applied
+consistently at entry time. That is a process change HPIC controls, which is a
+far better place for a blocker to sit than a vendor's API.
+
+**Open decision: what ties a QuickBooks class to an LGL award.** A class naming
+convention that matches the grant, a customer or project per grant, or an
+explicit mapping in Worker config. Decide this before building the
+reconciliation; everything downstream depends on the key being applied the same
+way every time.
+
+The completeness rule from Phase 1 governs here too. A deposit coded to no class
+is invisible to the reconciliation, so an incomplete attribution must render as
+unavailable with the reason attached, never as a total that is quietly low.
 
 **Applications are deliberately out of scope** (confirmed with Alex,
 2026-08-14). This tool starts at money awarded or promised, not money requested.
@@ -161,16 +189,19 @@ as config so real IDs drop in later.
 
 ### Phase 2 — Grant funnel
 
-Three figures from LGL: pledged, received, outstanding.
+Pledged from LGL; Received and Outstanding reconciled against QuickBooks (see
+the domain model above).
 
 Then:
 
 - Break out by campaign or fund so restricted and unrestricted are visible
-  separately.
+  separately. This needs only the LGL read and is the piece that can be built
+  before the QuickBooks reconciliation exists.
 - Provide a detail view listing individual pledges with their status, campaign,
   amounts, and reimbursable status where known.
 - Split the outstanding figure by reimbursable vs. not. That split is the single
-  most decision-relevant number on the dashboard.
+  most decision-relevant number on the dashboard, and it depends on the
+  QuickBooks side being in place.
 
 ### Phase 3 — Phase readiness
 
