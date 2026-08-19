@@ -30,10 +30,29 @@ project with no deadline.
       block it until the Worker is told. One line, one deploy.
       → `docs/runbook-migration.md` §3
 
+## Phase 2 — the blocker
+
+- [ ] **0. Ask LGL support how to read a pledge's outstanding balance.**
+      This is the most important open question in the project. **Received and
+      Outstanding cannot be shown at all right now** — the API docs expose no
+      `amount_due` or `balance` field on any object, and the spec forbids
+      recomputing it by summing payment gifts because LGL maintains the real
+      figure and recomputing drifts.
+
+      Outstanding split by reimbursable status is the single most
+      decision-relevant number on this dashboard. Until this is answered, the
+      funnel shows Pledged and nothing past it.
+
+      Ask them: is there an API-reachable balance or amount-due on a pledge
+      gift, and if not, what is the intended way to get remaining balance for a
+      pledge? If the answer is "there isn't one," the fallback is a derived
+      figure clearly labeled as derived — but that is a decision to make
+      knowingly, not a default.
+
 ## Phase 2 prerequisites
 
-Neither blocks starting Phase 2 — the build is fixture-first — but both are
-needed before it reads live data.
+Neither blocks the current fixture build, but both are needed before it reads
+live data.
 
 - [ ] **4. Issue a fresh Little Green Light API key, scoped to this tool.**
       Do not reuse the membership lookup tool's key. `worker/wrangler.toml`
@@ -83,6 +102,8 @@ Not yours to do, but worth tracking so the wait is visible.
 
 ## Recently done
 
+- Phase 2 thin slice: LGL client, `/api/grants`, fixtures, tests, UI panel
+  (2026-08-14). Fixture-only — no live LGL read yet.
 - Rotated `ACCESS_PASSPHRASE` after it was exposed in a screenshot (2026-08-14)
 - Verified the token refresh against live Intuit (2026-08-14)
 - Added the Worker test suite; `cd worker && npm test`
