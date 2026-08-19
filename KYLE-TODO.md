@@ -14,44 +14,70 @@ project with no deadline.
 
 ## Start here tomorrow
 
-- [ ] **A. Settle what "deposited" means on a grant pledge in LGL.**
-      **This is the one thing blocking a live cutover.** Every grant pledge read
-      on 2026-08-19 had `deposited_amount` exactly equal to `received_amount`
-      with a real `deposit_date`. Read literally, that says the full $1,471,000
-      is already in the bank — including the two largest Rebuild awards,
-      $485,000 and $388,000, which the spec describes as cost-reimbursement with
-      no signed contract.
+- [x] **A. Settle what "deposited" means on a grant pledge in LGL. — ANSWERED
+      2026-08-19, and the answer was the dangerous one.**
+      `received_amount` on a Pledge is the **award amount, not cash**. The
+      `deposited_amount` and `deposit_date` fields are stamped when the pledge is
+      entered and do **not** mean money arrived. Trusting them would have
+      overstated cash by $926,000.
 
-      Either those funds really have arrived and the spec's premise is stale, or
-      LGL populates the deposit fields as bookkeeping when a pledge is entered
-      and they do not mean cash. **Nobody should publish a figure until it is
-      clear which.** Presenting unreceived reimbursable awards as money in hand
-      is precisely the failure this dashboard exists to prevent.
+      Cash lives in separate child records — type-1 `Gift`s whose
+      `parent_gift_id` points at the pledge. Alex's formula reproduces exactly:
+      amount due = pledge amount − sum of child gifts. Three levels, and only
+      the middle one is read today:
 
-      Probably two minutes: open one of the Rebuild pledges in the LGL UI, or
-      ask whoever on the development committee enters grants. Tell Claude the
-      answer and it will label the funnel accordingly.
+      | Level | Type | Category | Holds |
+      | --- | --- | --- | --- |
+      | Goal | 14 | Grant Proposal | the application; **no amount exposed** (`null`) |
+      | Pledge | 7 | Grant | the award; `received_amount` = face amount |
+      | Gift | 1 | Grant | actual cash, linked by `parent_gift_id` |
 
-- [ ] **B. Re-set the LGL API key as a Worker secret.**
-      The value stored on 2026-08-18 was almost certainly wrapped in angle
-      brackets. The `<key>` in the README is a fill-in marker, not literal text,
-      and exactly that mistake was found and fixed in `worker/.dev.vars`.
-      Secrets are write-only so it cannot be inspected — just set it again. A
-      bracketed key fails identically to a revoked one, which is a genuinely
-      confusing thing to debug later.
+      Against live data: **Pledged $1,471,000 · Received $545,000 · Outstanding
+      $926,000.** The $388,000 reimbursable award has zero payments against it;
+      the $485,000 one was drawn in three installments over a year. **The spec's
+      premise is intact, not stale.**
 
-      From `worker/`, in Git Bash, with no angle brackets around the key:
-      `printf '%s' 'the-key' | npx wrangler secret put LGL_API_KEY`
+      **Nothing shipped was wrong.** `giftAmount()` sums type-7 records and
+      labels the total Pledged, which is correct; Received and Outstanding
+      render "Not shown". The $1,471,000 was never presented as cash.
 
-- [ ] **C. Push the two local commits.**
-      `edf4815` and `b12c7d6` are committed locally and not on `origin/main`.
-      Work reaches that branch from other sessions, so the gap is worth closing
-      early. Ask Claude to push, or `git push`.
+- [ ] **A2. Ask Alex whether Received should come from LGL or QuickBooks.**
+      The factual question in A is closed, but it overturns a premise. CLAUDE.md
+      and item 0 both say Received and Outstanding must come from QuickBooks
+      *because LGL has no amount-due field*. LGL does have the answer after all,
+      via child gifts. So the choice is now a judgment call about which system
+      the board treats as authoritative for cash:
 
-## Then — the live LGL cutover, once A is answered
+      - **LGL** — works today, no new bookkeeping. Correct only if whoever
+        enters grants records every payment as it arrives.
+      - **QuickBooks** — genuinely authoritative for cash, but needs the class
+        or customer discipline in item 0, which does not exist today.
+
+      Note the reasoning still holds unchanged for **Spent**: invoicing a
+      cost-reimbursement funder requires knowing what HPIC spent, and spending
+      exists only in QuickBooks. This decision is about Received only.
+
+      Also worth asking in the same breath: pledge 906602 ($38,000) is entered
+      as an award, but its Goal note reads "Application Year 2025, decision
+      anticipated April 2026." Awarded, or still pending?
+
+- [x] **B. Re-set the LGL API key as a Worker secret. — DONE 2026-08-19.**
+      The `wrangler secret put` failed first with "the latest version of your
+      worker isn't currently deployed"; `npx wrangler deploy` from `worker/`
+      cleared it. Worth remembering: a secret cannot be bound to a version that
+      is not the deployed one. The key in `worker/.dev.vars` was never
+      bracketed — every live read authenticated fine.
+- [x] **C. Push the two local commits. — DONE.** `main` and `origin/main` are
+      both at `3c5793b`; nothing is outstanding.
+
+## Then — the live LGL cutover
 
 - [ ] **D. Scope the funnel, flip to live, deploy once.**
-      All the values are verified and recorded below. In `worker/wrangler.toml`:
+      **No longer blocked by A.** The fear was publishing $1,471,000 as cash in
+      hand; the code labels it Pledged, which is correct, and leaves Received
+      and Outstanding unavailable. Going live now is honest whatever Alex says
+      about A2 — his answer changes what gets *added*, not whether Pledged is
+      right. All the values are verified and recorded below. In `worker/wrangler.toml`:
       uncomment `LGL_GRANT_CAMPAIGN_IDS = "871"` and
       `LGL_GRANT_GIFT_CATEGORY_IDS = "6031"`, change `LGL_MODE` to `"live"`,
       commit, then `npx wrangler deploy` from `worker/`.
@@ -161,10 +187,38 @@ from `worker/.dev.vars`. Every request it makes is a GET.
 | Pledge gift type | **7** (resolved by name, as the code expects) |
 | Rebuild Project campaign | **871** |
 | "Grant" gift category | **6031** |
-| Scoped to 871 + 6031 | 6 pledges, **$1,471,000** |
+| Scoped to 871 + 6031 | 6 pledges, **$1,471,000 awarded** (not received — see below) |
 | Category 6031 alone | 10 pledges, $1,528,372 — adds ~$57k of Programs grants |
 | Pledges carrying a custom field | 0 of 13, so reimbursable is "unknown" for every award |
 | `auto_sync_to_qbo` | `false` on every record |
+
+### The three-level gift structure — verified 2026-08-19
+
+This is the part that was misread the first time. `node lgl-inspect.mjs`
+regenerates the scope IDs; the payment tree below came from following
+`parent_gift_id` on each scoped pledge.
+
+| Level | Type | Category | Holds |
+| --- | --- | --- | --- |
+| Goal | 14 | Grant Proposal | the application; **no amount exposed** (`null`) |
+| Pledge | 7 | Grant | the award; `received_amount` = face amount |
+| Gift | 1 | Grant | actual cash, linked by `parent_gift_id` |
+
+```
+pledge 903691   $485,000   <- $279,573.79 + $92,855.92 + $112,570.29   due $0
+pledge 909194    $50,000   <- $50,000                                  due $0
+pledge 904066    $10,000   <- $10,000                                  due $0
+pledge 905997   $500,000   <- (none)                            due $500,000
+pledge 905452   $388,000   <- (none)                            due $388,000
+pledge 906602    $38,000   <- (none)                             due $38,000
+                                                         ────────────────────
+Pledged $1,471,000     Received $545,000     Outstanding $926,000
+```
+
+**Do not trust `deposited_amount` or `deposit_date` on a pledge.** They are
+stamped at entry and equal `received_amount` on every record, including awards
+with no payment against them at all. Reading them as cash overstates by
+$926,000.
 
 Note the gift-categories endpoint returns **blank names**, so `6031` was
 identified from the `gift_category_name` on real pledges rather than from that
@@ -190,6 +244,13 @@ funnel sees pledges only and Goals cannot reach it whatever the scope config.
 
 ## Recently done
 
+- Established what LGL actually exposes for grant cash (2026-08-19): pledges
+  carry the award amount, child type-1 gifts carry the payments. Closes item A
+  and reopens the Received/Outstanding source question as item A2.
+- Committed `lgl-inspect.mjs` so the reference table is reproducible from a
+  fresh clone rather than only on Kyle's machine (2026-08-19).
+- Re-set `LGL_API_KEY` as a Worker secret after a `wrangler deploy` cleared the
+  version mismatch (2026-08-19).
 - Removed Applied from the funnel; it is now Pledged → Received → Outstanding
   (`edf4815`, 2026-08-18). Alex confirmed the tool starts at money awarded, not
   requested, after the slice was already built.
