@@ -78,13 +78,27 @@ const GIFT_TYPES = [
   { id: 13, name: "Installment" },
 ];
 
+/**
+ * Both helpers clear the grant scope before applying overrides.
+ *
+ * `env` carries whatever wrangler.toml sets, and it now sets a real scope
+ * (campaign 871, category 6031). Without this, "unscoped" tests would silently
+ * become scoped tests the moment deployment config changed — which is exactly
+ * what happened when the live cutover landed. A test that asserts what happens
+ * with no scope has to build that state itself rather than inherit it.
+ */
+const UNSCOPED = {
+  LGL_GRANT_CAMPAIGN_IDS: undefined,
+  LGL_GRANT_GIFT_CATEGORY_IDS: undefined,
+} as const;
+
 /** Live mode with a key. Individual tests narrow this further. */
 function liveEnv(overrides: Partial<Env> = {}): Env {
-  return { ...env, LGL_MODE: "live", LGL_API_KEY: "test-lgl-key", ...overrides } as Env;
+  return { ...env, ...UNSCOPED, LGL_MODE: "live", LGL_API_KEY: "test-lgl-key", ...overrides } as Env;
 }
 
 function fixtureEnv(overrides: Partial<Env> = {}): Env {
-  return { ...env, LGL_MODE: "fixture", ...overrides } as Env;
+  return { ...env, ...UNSCOPED, LGL_MODE: "fixture", ...overrides } as Env;
 }
 
 function stage(snapshot: Awaited<ReturnType<typeof getGrants>>, key: string) {

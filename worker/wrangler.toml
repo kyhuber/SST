@@ -77,13 +77,21 @@ ALLOWED_ORIGIN = "https://kyhuber.github.io"
 #
 # Issue a fresh key scoped to this tool rather than reusing the membership
 # lookup tool's key, so either can be revoked without breaking the other.
-LGL_MODE = "fixture"
+LGL_MODE = "live"
 
 # Which LGL campaigns and gift categories hold grant activity, comma-separated.
-# Left unset deliberately until HPIC's real IDs are confirmed: LGL holds every
-# pledge, so without a scope these figures cover individual donor activity too.
-# The dashboard says so on screen rather than implying the numbers are
-# grants-only.
+# LGL holds every pledge, most of it individual donor giving, so without a
+# scope these figures would cover that too. Verified against live LGL on
+# 2026-08-19; regenerate with `node lgl-inspect.mjs` from the repository root.
 #
-# LGL_GRANT_CAMPAIGN_IDS = ""
-# LGL_GRANT_GIFT_CATEGORY_IDS = ""
+# 871  = the Rebuild Project campaign.
+# 6031 = the gift category holding grant *awards* (type-7 pledges).
+#
+# Note 6031 is awards only. Payments against those awards live in a SEPARATE
+# category, 6076, which also displays as "Grant" — and the gift-categories
+# endpoint returns blank names, so the two cannot be told apart by listing
+# them. Nothing reads 6076 today because Received is not computed from LGL;
+# anything that starts computing it must add 6076 here and cannot assume the
+# name is enough to identify it.
+LGL_GRANT_CAMPAIGN_IDS = "871"
+LGL_GRANT_GIFT_CATEGORY_IDS = "6031"
