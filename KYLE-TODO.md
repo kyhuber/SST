@@ -28,45 +28,79 @@ is exactly what the existing invariants already enforce. Launching on imperfect
 data is not a compromise of "an honest unavailable beats a clean number hiding
 a caveat" — it is that rule doing its job.
 
-- [ ] **P1. Render Received and Outstanding provisionally from LGL.** *(Claude)*
-      Walk `parent_gift_id` from each payment up to its award — never filter
-      payments by campaign, which drops $372,429 of the Commerce award (see the
-      reference section). Label the figures **"per LGL, not reconciled to the
-      books"** and never present them as cash confirmed.
+- [x] **P1. Render Received and Outstanding provisionally from LGL. — DONE
+      2026-08-19** (`6107d7e`, worker version `dd0a0d63`). Live figures:
+      **Pledged $1,471,000 · Received $545,000 · Outstanding $926,000**, the
+      last two carrying a `provisional` status and an on-card flag rather than
+      a footnote.
 
-      Live data gives Received $545,000 and Outstanding $926,000, so this is a
-      real demo rather than an empty frame.
+      `readPayments` does not filter by campaign, and a test pins the $200,000
+      no-campaign payment specifically. Reintroducing the filter was tried
+      deliberately: it fails seven tests, and against live data it would take
+      Received from $545,000 to $172,570.29 without erroring.
 
-- [ ] **P2. Build the data-quality panel — the piece that makes the strategy
-      work.** *(Claude)* Today Received says "Not shown", which is honest and inert. It
-      needs to say *what is wrong and which records*:
+- [x] **P2. Build the data-quality panel. — DONE 2026-08-19** (same commit).
+      Against live data it surfaces nine records:
 
-      > **Received — provisional.** 3 payments totalling $10,500 are not linked
-      > to an award: Office of Arts & Culture $7,500 (Jan 2025), Seattle Public
-      > Utilities $1,500 (May 2025) and $1,500 (May 2026).
+      | Finding | Severity | Records |
+      | --- | --- | --- |
+      | Payments not linked to an award | blocking | 3 · $10,500 |
+      | Awards with no reimbursable status | blocking | 6 · $1,471,000 |
+      | Payments with no campaign | advisory | 2 · $372,429.71 |
 
-      That turns a report into a worklist, and the governance rules then write
-      themselves from the exception list. It also means the board is looking at
-      their own records rather than at Kyle's opinion of their processes.
+      Each names the funder, amount, date, note, and links into LGL. Blocking
+      means a figure above is wrong or missing because of it; advisory means
+      the dashboard copes but LGL's own reports do not.
 
-      The panel should surface, at minimum: payments with no parent award,
-      awards with no campaign, non-grant income sitting in category 6076,
-      awards missing `reimbursable`, and — once P3 lands — QuickBooks
-      transactions carrying no grant class.
+      **Two known limits, both stated on the panel itself:** it cannot tell
+      whether money in a grant category is really a grant, so the SPU
+      fee-for-service records only show up because they are also unlinked; and
+      funder names are best-effort, capped at 12 lookups, since LGL has no bulk
+      constituent endpoint.
 
-- [ ] **P3. Add the QuickBooks grant dimension for Received and Spent.**
-      *(Claude, once the classes exist)*
-      Spec in item 0. Blocked on the bookkeeping practice existing, not on
-      code. Until then these render unavailable with the reason, sitting beside
-      the provisional LGL figures — **and that contrast is the argument for
-      making the change.**
+## What happens next
+
+Roughly in order of leverage. The first two are the whole point of having
+shipped the thing.
+
+- [ ] **N1. Look at the dashboard and decide whether it reads right.** The one
+      thing no test covers: whether the blocking/advisory split is legible to
+      someone who is not Kyle, and whether "provisional" reads as *useful but
+      unconfirmed* rather than *broken*. This is the version Alex, Galen and
+      Rachel will see, so it is worth one careful read before showing it.
+
+- [ ] **N2. Send Alex the message.** Drafted and reviewed; still unsent. It
+      asks whether Received should come from LGL or QuickBooks and flags the
+      two Commerce payments missing their campaign. The dashboard now makes
+      that argument on its own, so the message can be shorter than it was.
+
+- [ ] **N3. Define `reimbursable` in LGL admin — the cheapest unblock there
+      is.** Purely additive, no existing data changes, and it clears the
+      largest blocking finding on the panel: **6 awards, $1,471,000**, every
+      one reading "unknown". It is also the gate on Phase 3. Same trip: define
+      `contract_signed`. This is item 5 below.
+
+- [ ] **N4. Make the three safe LGL fixes.** Link the 3 unlinked payments to
+      their awards, and backfill the campaign on the 2 Commerce payments. Both
+      restore intended relationships rather than assert a judgment, so neither
+      needs anyone's permission. **Do not recode the SPU compost records** —
+      see rule 3 below; that one is a conversation with Galen.
+
+      Each fix should visibly remove a row from the panel on the next read,
+      which is worth watching once as proof the loop closes.
+
+- [ ] **N5 / P3. Add the QuickBooks grant dimension for Received and Spent.**
+      *(Kyle creates the classes; Claude builds the read.)* Fully specified in
+      item 0 — one Class per award, mapped to LGL gift IDs in Worker config.
+      Blocked on the bookkeeping existing, not on code. Until then Received
+      stays provisional from LGL, and **that contrast is the argument for
+      making the change**, so there is no rush to hide it.
 
 - [ ] **P4. Phase 3 stays blocked, deliberately.** "Spendable excludes
       unreceived reimbursable awards" needs authoritative Received *and* the
       `reimbursable` flag, which is unknown on all 10 awards. This is the one
       figure where being wrong costs real money, so it waits for both. The
       Dry-in target cost from the GC is still outstanding regardless.
-
 
 ## Answered — what had been blocking the cutover
 
@@ -376,6 +410,11 @@ funnel sees pledges only and Goals cannot reach it whatever the scope config.
 
 ## Recently done
 
+- **Shipped the prototype: the funnel renders all three stages and the
+  data-quality panel names what is broken** (`6107d7e`, 2026-08-19). This is
+  the point the launch-then-govern strategy was waiting on — there is now
+  something to show Alex, Galen and Rachel, and the case for changing how
+  records are entered is made from HPIC's own records.
 - Established what LGL actually exposes for grant cash (2026-08-19): pledges
   carry the award amount, child type-1 gifts carry the payments. Closes item A
   and reopens the Received/Outstanding source question as item A2.
