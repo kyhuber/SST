@@ -29,7 +29,13 @@ export interface FundsSnapshot {
 
 // --- Phase 2: the Little Green Light grant funnel ---
 
-export type FunnelStatus = "ok" | "unavailable";
+/**
+ * "provisional" is a figure computed from Little Green Light that the books
+ * have not confirmed. It is deliberately not a weaker "ok": QuickBooks is the
+ * system of record for cash, so the status carries the caveat rather than
+ * leaving it to a footnote the reader may skip.
+ */
+export type FunnelStatus = "ok" | "provisional" | "unavailable";
 
 export interface FunnelStage {
   key: "pledged" | "received" | "outstanding";
@@ -49,8 +55,28 @@ export interface ReimbursableBucket {
   recordCount: number;
 }
 
+export interface DataQualityRecord {
+  id: number;
+  amount: number | null;
+  date: string | null;
+  who: string | null;
+  note: string | null;
+  url: string | null;
+}
+
+export interface DataQualityException {
+  key: string;
+  label: string;
+  detail: string;
+  severity: "blocking" | "advisory";
+  recordCount: number;
+  amount: number | null;
+  records: DataQualityRecord[];
+}
+
 export interface GrantSnapshot {
   stages: FunnelStage[];
+  exceptions: DataQualityException[];
   awardsByReimbursable: ReimbursableBucket[];
   unscoped: boolean;
   retrievedAt: string | null;

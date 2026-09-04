@@ -65,7 +65,7 @@ const PLEDGE_GIFTS = [
     received_date: "2026-05-02",
     deductible_amount: 0.0,
     note: "Cost-reimbursement; contract not yet signed.",
-    parent_gift_id: null,
+    parent_gift_id: 990001,
     custom_fields: [
       {
         id: 7701,
@@ -103,7 +103,7 @@ const PLEDGE_GIFTS = [
     received_date: "2026-04-18",
     deductible_amount: 0.0,
     note: null,
-    parent_gift_id: null,
+    parent_gift_id: 990002,
     custom_fields: [
       {
         id: 7701,
@@ -178,11 +178,141 @@ const PLEDGE_GIFTS = [
   },
 ];
 
+/**
+ * Payments. In LGL these are type-1 gifts in a *different* category from the
+ * awards, linked to their award by `parent_gift_id`.
+ *
+ * Shaped to reproduce the traps found in HPIC's live data on 2026-08-19,
+ * because each one produces a plausible wrong number rather than an error:
+ *
+ * - **992002 carries no campaign** although its award is in campaign 901. Two
+ *   of the three real payments against the $485,000 Commerce award are like
+ *   this. If payments are ever filtered by campaign, this one vanishes and
+ *   Received quietly drops by $200,000.
+ * - **992900 has no parent at all**, so it belongs to no award and must be
+ *   excluded from Received and reported as an exception instead.
+ * - **992950 belongs to an out-of-scope award**, so scoping has to exclude it
+ *   without any rule beyond "its award is not one of ours".
+ */
+const PAYMENT_GIFTS = [
+  {
+    id: 992001,
+    constituent_id: 1200401,
+    is_anon: false,
+    gift_type_id: 1,
+    gift_type_name: "Gift",
+    gift_category_id: 6102,
+    gift_category_name: "Grant",
+    campaign_id: 901,
+    campaign_name: "Clubhouse Rebuild",
+    fund_id: 3201,
+    fund_name: "Rebuild — Restricted",
+    received_amount: 400000.0,
+    received_date: "2026-06-01",
+    note: "First draw.",
+    parent_gift_id: 991001,
+    custom_fields: [],
+    created_at: "2026-06-01T10:00:00Z",
+    updated_at: "2026-06-01T10:00:00Z",
+  },
+  {
+    id: 992002,
+    constituent_id: 1200401,
+    is_anon: false,
+    gift_type_id: 1,
+    gift_type_name: "Gift",
+    gift_category_id: 6102,
+    gift_category_name: "Grant",
+    campaign_id: 0,
+    campaign_name: null,
+    fund_id: 3201,
+    fund_name: "Rebuild — Restricted",
+    received_amount: 200000.0,
+    received_date: "2026-07-14",
+    note: "Second draw. Entered without a campaign.",
+    parent_gift_id: 991001,
+    custom_fields: [],
+    created_at: "2026-07-14T10:00:00Z",
+    updated_at: "2026-07-14T10:00:00Z",
+  },
+  {
+    id: 992003,
+    constituent_id: 1200402,
+    is_anon: false,
+    gift_type_id: 1,
+    gift_type_name: "Gift",
+    gift_category_id: 6102,
+    gift_category_name: "Grant",
+    campaign_id: 901,
+    campaign_name: "Clubhouse Rebuild",
+    fund_id: 3201,
+    fund_name: "Rebuild — Restricted",
+    received_amount: 150000.0,
+    received_date: "2026-04-18",
+    note: "Paid in full.",
+    parent_gift_id: 991002,
+    custom_fields: [],
+    created_at: "2026-04-18T10:00:00Z",
+    updated_at: "2026-04-18T10:00:00Z",
+  },
+  {
+    id: 992900,
+    constituent_id: 1200404,
+    is_anon: false,
+    gift_type_id: 1,
+    gift_type_name: "Gift",
+    gift_category_id: 6102,
+    gift_category_name: "Grant",
+    campaign_id: 0,
+    campaign_name: null,
+    fund_id: null,
+    fund_name: null,
+    received_amount: 12500.0,
+    received_date: "2026-02-09",
+    note: "Addition to the 2025 award.",
+    parent_gift_id: null,
+    custom_fields: [],
+    created_at: "2026-02-09T10:00:00Z",
+    updated_at: "2026-02-09T10:00:00Z",
+  },
+  {
+    id: 992950,
+    constituent_id: 1200450,
+    is_anon: false,
+    gift_type_id: 1,
+    gift_type_name: "Gift",
+    gift_category_id: 6102,
+    gift_category_name: "Grant",
+    campaign_id: 902,
+    campaign_name: "Annual Giving",
+    fund_id: 3202,
+    fund_name: "Operating",
+    received_amount: 5000.0,
+    received_date: "2026-03-30",
+    note: "Against an award outside the grant scope.",
+    parent_gift_id: 991050,
+    custom_fields: [],
+    created_at: "2026-03-30T10:00:00Z",
+    updated_at: "2026-03-30T10:00:00Z",
+  },
+];
+
+/** Read only to label a data-quality exception with a funder name. */
+const CONSTITUENTS: Record<string, unknown> = {
+  "1200401": { id: 1200401, is_org: true, org_name: "State Capital Programs Office", sort_name: "State Capital Programs Office" },
+  "1200402": { id: 1200402, is_org: true, org_name: "County Arts Commission", sort_name: "County Arts Commission" },
+  "1200403": { id: 1200403, is_org: true, org_name: "Neighborhood Trust", sort_name: "Neighborhood Trust" },
+  "1200404": { id: 1200404, is_org: true, org_name: "City Arts Office", sort_name: "City Arts Office" },
+  "1200450": { id: 1200450, is_org: true, org_name: "Community Fund", sort_name: "Community Fund" },
+};
+
 /** Everything fixture mode can answer, keyed by API path. */
 const RESPONSES: Record<string, unknown[]> = {
   gift_types: GIFT_TYPES,
   campaigns: CAMPAIGNS,
-  "gifts/search": PLEDGE_GIFTS,
+  // One pool, as LGL has. The q[] filters below separate awards from payments,
+  // so the scoping logic is exercised here rather than only against live data.
+  "gifts/search": [...PLEDGE_GIFTS, ...PAYMENT_GIFTS],
 };
 
 /**
@@ -191,6 +321,13 @@ const RESPONSES: Record<string, unknown[]> = {
  * a path added without a fixture cannot silently report zero grants.
  */
 export function lglFixture(path: string, params: URLSearchParams): unknown[] | null {
+  // Single-record reads. Only used for best-effort labelling, so an unknown ID
+  // returns null and the caller falls back to showing the record without a name.
+  if (path.startsWith("constituents/")) {
+    const record = CONSTITUENTS[path.slice("constituents/".length)];
+    return record ? [record] : null;
+  }
+
   const items = RESPONSES[path];
   if (!items) return null;
 

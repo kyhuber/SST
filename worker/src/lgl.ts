@@ -16,30 +16,48 @@
  *   "Pledge"**. LGL's stock gift categories include "Grant" under exactly that
  *   type, so this is the intended modelling, not a workaround.
  * - Payments against an award are separate gifts linked by `parent_gift_id`.
- * - **No amount-due or balance field exists on any documented object.** The
- *   strings `amount_due` and `balance` do not appear in the API docs at all.
+ * - There is **no amount-due field**, but amount due is *derivable*: the award
+ *   amount minus the payments hanging off it. An earlier note here claimed the
+ *   figure was unavailable; that was wrong, and this file now computes it.
  *
- * That last point used to decide the shape of this file, when Received and
- * Outstanding were defined in terms of amount due. They no longer are.
+ * ## A grant is three records, not one
  *
- * ## Received and Outstanding are not LGL's to answer
+ * Verified against live LGL on 2026-08-19:
  *
- * As of 2026-08-19 this file reads one figure — Pledged, the awarded amount.
- * Received and Outstanding are cash facts, and QuickBooks is the system of
- * record for cash:
+ * | Stage | Type | Category | Carries |
+ * | --- | --- | --- | --- |
+ * | Application | 14 "Goal" | 6051 "Grant Proposal" | no amount at all |
+ * | Award | 7 "Pledge" | 6031 "Grant" | `received_amount` = award face value |
+ * | Payment | 1 "Gift" | 6076 "Grant" | `received_amount` = cash received |
  *
- *     Received     = grant cash actually deposited, per QuickBooks
- *     Outstanding  = Pledged (LGL) − Received (QuickBooks)
+ * Each links upward by `parent_gift_id`. Three consequences shape this file:
  *
- * The missing LGL field is not why. The reimbursement case is: invoicing a
- * funder on a cost-reimbursement award requires knowing what HPIC *spent*, and
- * spending exists only in QuickBooks. No LGL field could answer that.
+ * - **`received_amount` on an award is the award, not cash.** So is
+ *   `deposited_amount`, stamped at entry and equal on every award including
+ *   ones never paid. Reading either as cash overstates by $926,000 live.
+ * - **Awards and payments live in different categories that share a display
+ *   name.** Hence the separate `LGL_GRANT_PAYMENT_CATEGORY_IDS`.
+ * - **Payments frequently do not carry their award's campaign** — three of
+ *   eleven have `campaign_id = 0`, including two against the $485,000
+ *   Commerce award. So `readPayments` deliberately does **not** filter by
+ *   campaign; scoping is applied afterwards by walking `parent_gift_id` up to
+ *   an award already known to be in scope. Filtering payments by campaign the
+ *   way awards are filtered returns $112,570.29 of that $485,000 and silently
+ *   drops $372,429.71.
  *
- * So the two stages still render "Not shown", but for a different reason than
- * they once did, and the note says so. Building them needs QuickBooks to carry
- * a class, customer, or project identifying each grant — a bookkeeping practice,
- * not a field this file is missing. Do not reintroduce a derived amount-due
- * here.
+ * ## Received here is provisional, and says so
+ *
+ * QuickBooks is the system of record for cash, and `Spent` is not derivable
+ * from LGL at all — LGL has no concept of an expense, and invoicing a
+ * cost-reimbursement funder requires knowing what HPIC spent. So the figures
+ * this file produces for Received and Outstanding are marked `provisional`
+ * and labelled as unreconciled, rather than reported as fact.
+ *
+ * They are still worth rendering. The prototype's strategy is that the
+ * dashboard exposes the data gaps and that evidence carries the argument for
+ * fixing them, which requires showing something. What makes that honest is
+ * that every record breaking a rule is named in the data-quality exceptions
+ * below, and no exception is ever absorbed into a total.
  *
  * ## Applications are out of scope
  *
@@ -62,6 +80,8 @@
 
 import { LGL_FIXTURE_RETRIEVED_AT, lglFixture } from "./lgl-fixtures";
 import type {
+  DataQualityException,
+  DataQualityRecord,
   Env,
   FunnelStage,
   GrantSnapshot,
@@ -137,6 +157,20 @@ export interface LglGift {
   received_date?: string | null;
   parent_gift_id?: number | null;
   custom_fields?: LglCustomField[] | null;
+  /** Needed to name the funder on a data-quality exception. */
+  constituent_id?: number | null;
+  /** Free text, and in practice the field that says what a payment was for. */
+  note?: string | null;
+}
+
+/** Only the name fields matter; a constituent is read solely to label a record. */
+interface LglConstituent {
+  id: number;
+  is_org?: boolean | null;
+  org_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  sort_name?: string | null;
 }
 
 interface LglGiftType {
@@ -217,6 +251,30 @@ async function getPage<T>(
     };
   } catch (error) {
     return { ok: false, detail: `Unreadable response from Little Green Light: ${String(error)}` };
+  }
+}
+
+/**
+ * Fetch one record by path.
+ *
+ * Separate from `getAll` because `/constituents/{id}` returns a bare object
+ * rather than `{ items: [...] }`, so the paging walk would read it as empty.
+ * Only used for best-effort labelling, never for a figure.
+ */
+async function getRecord<T>(env: Env, path: string): Promise<T | null> {
+  if (isFixtureMode(env)) {
+    const items = lglFixture(path, new URLSearchParams());
+    return (items?.[0] as T) ?? null;
+  }
+  try {
+    const response = await fetch(`${BASE_URL}/${path}`, {
+      method: "GET",
+      headers: { Accept: "application/json", Authorization: `Bearer ${env.LGL_API_KEY}` },
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as T;
+  } catch {
+    return null;
   }
 }
 
@@ -371,6 +429,27 @@ async function readAwards(env: Env): Promise<ReadResult<LglGift>> {
   return getAll<LglGift>(env, "gifts/search", [["q[]", terms.join(";")]]);
 }
 
+/**
+ * Payments: gifts in the grant *payment* categories.
+ *
+ * Deliberately NOT filtered by campaign, and that is the single most important
+ * line in this file. Payments frequently carry `campaign_id = 0` even when
+ * their award is scoped to a campaign — two of the three payments against the
+ * $485,000 Commerce award do. Adding `campaigns=in|...` here would return
+ * $112,570.29 of that award and silently drop $372,429.71, which is precisely
+ * the quiet undercount the completeness rules exist to prevent.
+ *
+ * Scope is applied afterwards instead, by keeping only payments whose
+ * `parent_gift_id` names an award already known to be in scope.
+ */
+async function readPayments(env: Env): Promise<ReadResult<LglGift> | null> {
+  const categoryIds = parseIds(env.LGL_GRANT_PAYMENT_CATEGORY_IDS);
+  if (categoryIds.length === 0) return null;
+  return getAll<LglGift>(env, "gifts/search", [
+    ["q[]", `categories=in|${categoryIds.join(",")}`],
+  ]);
+}
+
 // --- Funnel assembly ---
 
 function unavailableStage(
@@ -382,6 +461,23 @@ function unavailableStage(
 }
 
 /**
+ * A figure computed from LGL that the books have not confirmed.
+ *
+ * Distinct from "ok" on purpose. QuickBooks is the system of record for cash,
+ * so an LGL-derived Received is evidence, not fact, and the status carries
+ * that rather than relying on anyone reading a footnote.
+ */
+function provisionalStage(
+  key: FunnelStage["key"],
+  label: string,
+  amount: number,
+  recordCount: number,
+  note: string,
+): FunnelStage {
+  return { key, label, status: "provisional", amount, recordCount, note };
+}
+
+/**
  * The note carried by Received and Outstanding.
  *
  * Kept as one string in one place because it is the single most important
@@ -390,11 +486,32 @@ function unavailableStage(
  * they are not blocked on Little Green Light.
  */
 export const RECONCILIATION_NOTE =
-  "Not shown. This figure is not a Little Green Light number: the award amount comes from " +
-  "Little Green Light, but cash received against it is an accounting fact, and QuickBooks " +
-  "is the system of record for cash. Reconciling the two is not built yet — it needs " +
-  "QuickBooks to identify each grant on the transactions belonging to it. Nothing here is " +
-  "estimated in the meantime.";
+  "Not shown. Cash received is an accounting fact and QuickBooks is the system of record " +
+  "for it, but no grant payment category is configured here, so Little Green Light cannot " +
+  "supply even a provisional figure. Set LGL_GRANT_PAYMENT_CATEGORY_IDS on the Worker.";
+
+/**
+ * The note carried by a provisional Received.
+ *
+ * The most important sentence on the panel, and written for a board member
+ * rather than a developer: it has to say plainly that the books have not
+ * confirmed this, without implying the number is worthless.
+ */
+export const PROVISIONAL_RECEIVED_NOTE =
+  "Provisional — from Little Green Light, not reconciled against the books. This sums the " +
+  "payment records linked to each award. QuickBooks is the system of record for cash, and " +
+  "that reconciliation is not built yet. Payments that were never linked to an award are " +
+  "listed under Data quality and are NOT counted here, so the real figure may be higher.";
+
+export const PROVISIONAL_OUTSTANDING_NOTE =
+  "Provisional — Pledged minus Received, so it inherits every caveat on Received. If a " +
+  "payment is missing its link to an award, this figure overstates what is still owed.";
+
+/** Spent has no LGL answer at all, and never will. Kept separate from the rest. */
+export const SPENT_NOTE =
+  "Little Green Light has no concept of an expense, so this cannot come from there at any " +
+  "level of data quality. It needs QuickBooks to identify each grant on the transactions " +
+  "belonging to it.";
 
 const UNSCOPED_NOTE =
   "Not scoped to grants — no grant campaign or gift category is configured, so this counts " +
@@ -428,6 +545,223 @@ function splitByReimbursable(awards: LglGift[]): ReimbursableBucket[] {
   });
 }
 
+/**
+ * Received and Outstanding, provisionally, from the payment records.
+ *
+ * Scope is applied here rather than in the query. `readPayments` cannot filter
+ * by campaign without dropping payments that carry none, so the narrowing
+ * happens against award IDs already known to be in scope: a payment counts if
+ * and only if its parent is one of the awards behind Pledged. That also means
+ * payments belonging to out-of-scope awards — a Programs grant, say — fall out
+ * naturally rather than needing a second rule.
+ *
+ * Every failure path yields "unavailable" rather than a partial number. An
+ * incomplete page walk is the dangerous one: it looks exactly like a smaller
+ * account.
+ */
+function receivedAndOutstanding(
+  pledged: FunnelStage,
+  awards: ReadResult<LglGift>,
+  payments: ReadResult<LglGift> | null,
+): FunnelStage[] {
+  const unavailable = (note: string) => [
+    unavailableStage("received", "Received", note),
+    unavailableStage("outstanding", "Outstanding", note),
+  ];
+
+  if (payments === null) return unavailable(RECONCILIATION_NOTE);
+  if (!payments.ok) return unavailable(payments.detail);
+  if (!payments.complete) {
+    return unavailable(
+      `More Little Green Light payment records than this dashboard reads in one pass ` +
+        `(${MAX_PAGES * PAGE_SIZE}). A partial total would understate cash received, so it ` +
+        `is not shown.`,
+    );
+  }
+  // Received is defined against the awards behind Pledged, so it cannot be
+  // more trustworthy than Pledged is.
+  if (!awards.ok || pledged.status !== "ok" || pledged.amount === null) {
+    return unavailable(
+      "Awards could not be read completely, and cash received is only meaningful against " +
+        "the awards it was received for.",
+    );
+  }
+
+  const awardIds = new Set(awards.items.map((award) => award.id));
+  const matched = payments.items.filter(
+    (payment) => payment.parent_gift_id != null && awardIds.has(payment.parent_gift_id),
+  );
+  const received = matched.reduce((sum, payment) => sum + giftAmount(payment), 0);
+
+  return [
+    provisionalStage("received", "Received", received, matched.length, PROVISIONAL_RECEIVED_NOTE),
+    provisionalStage(
+      "outstanding",
+      "Outstanding",
+      pledged.amount - received,
+      pledged.recordCount ?? 0,
+      PROVISIONAL_OUTSTANDING_NOTE,
+    ),
+  ];
+}
+
+// --- Data quality ---
+
+/** How many offending records travel with an exception, for display. */
+const MAX_EXCEPTION_RECORDS = 12;
+
+/**
+ * How many funder names to resolve.
+ *
+ * Each costs a request, so this is capped rather than unbounded. Labelling is
+ * strictly best-effort: a failed lookup leaves `who` null and never affects a
+ * figure or suppresses an exception.
+ */
+const MAX_NAME_LOOKUPS = 12;
+
+function constituentName(record: LglConstituent | null): string | null {
+  if (!record) return null;
+  if (record.is_org) return record.org_name?.trim() || record.sort_name?.trim() || null;
+  const person = [record.first_name, record.last_name].filter(Boolean).join(" ").trim();
+  return person || record.sort_name?.trim() || null;
+}
+
+function toRecord(env: Env, gift: LglGift, who: string | null): DataQualityRecord {
+  const base = env.LGL_UI_BASE_URL?.replace(/\/+$/, "");
+  return {
+    id: gift.id,
+    amount: giftAmount(gift),
+    date: gift.received_date ?? null,
+    who,
+    note: gift.note?.trim() || null,
+    url: base ? `${base}/gifts/${gift.id}` : null,
+  };
+}
+
+/**
+ * Resolve funder names for the records about to be displayed.
+ *
+ * Runs once over the whole exception set so a constituent appearing in two
+ * exceptions is fetched once, and so the cap counts distinct people rather
+ * than rows.
+ */
+async function resolveNames(env: Env, gifts: LglGift[]): Promise<Map<number, string>> {
+  const names = new Map<number, string>();
+  const ids = [...new Set(gifts.map((g) => g.constituent_id).filter((id): id is number => typeof id === "number"))];
+  for (const id of ids.slice(0, MAX_NAME_LOOKUPS)) {
+    const name = constituentName(await getRecord<LglConstituent>(env, `constituents/${id}`));
+    if (name) names.set(id, name);
+  }
+  return names;
+}
+
+/**
+ * Find the records that break a rule.
+ *
+ * These are the product, not error handling. The prototype ships against
+ * imperfect data on purpose, and this is what keeps that honest: every gap is
+ * named, counted in dollars, and linked, so the case for changing how records
+ * are entered is made from HPIC's own records rather than from an opinion.
+ *
+ * An exception with no records is dropped, so a clean account shows an empty
+ * panel rather than a list of reassurances.
+ */
+async function findExceptions(
+  env: Env,
+  awards: LglGift[],
+  payments: LglGift[],
+): Promise<DataQualityException[]> {
+  const unlinkedPayments = payments.filter((p) => !p.parent_gift_id);
+  const awardsNoCampaign = awards.filter((a) => !a.campaign_id);
+  const awardsNoReimbursable = awards.filter((a) => readReimbursable(a) === "unknown");
+  const awardsNoGoal = awards.filter((a) => !a.parent_gift_id);
+  const paymentsNoCampaign = payments.filter((p) => p.parent_gift_id && !p.campaign_id);
+
+  const names = await resolveNames(env, [
+    ...unlinkedPayments,
+    ...awardsNoCampaign,
+    ...awardsNoReimbursable,
+    ...awardsNoGoal,
+    ...paymentsNoCampaign,
+  ]);
+
+  const build = (
+    key: string,
+    label: string,
+    detail: string,
+    severity: DataQualityException["severity"],
+    gifts: LglGift[],
+    withAmount: boolean,
+  ): DataQualityException | null => {
+    if (gifts.length === 0) return null;
+    return {
+      key,
+      label,
+      detail,
+      severity,
+      recordCount: gifts.length,
+      amount: withAmount ? gifts.reduce((sum, g) => sum + giftAmount(g), 0) : null,
+      records: gifts
+        .slice(0, MAX_EXCEPTION_RECORDS)
+        .map((g) => toRecord(env, g, names.get(g.constituent_id ?? -1) ?? null)),
+    };
+  };
+
+  return [
+    build(
+      "unlinked_payments",
+      "Payments not linked to an award",
+      "These are in a grant payment category but name no award, so nothing can tell which " +
+        "grant they belong to. They are excluded from Received, which means Received is " +
+        "understated by up to this amount. Linking each one to its award in Little Green " +
+        "Light fixes it. Note that a payment here may not be a grant at all — if it is " +
+        "not, the fix is to move it out of the grant category rather than to link it.",
+      "blocking",
+      unlinkedPayments,
+      true,
+    ),
+    build(
+      "awards_missing_reimbursable",
+      "Awards with no reimbursable status",
+      "Whether an award is cost-reimbursement decides whether it counts as money HPIC can " +
+        "spend now. With the custom field unset these are never assumed spendable, so the " +
+        "phase-readiness figure cannot be built at all. Defining the field in Little Green " +
+        "Light admin and populating it is the single cheapest unblock available.",
+      "blocking",
+      awardsNoReimbursable,
+      true,
+    ),
+    build(
+      "awards_missing_campaign",
+      "Awards with no campaign",
+      "The funnel is scoped by campaign, so an award without one is invisible here — it " +
+        "will not appear in Pledged at all, and no total will look wrong.",
+      "blocking",
+      awardsNoCampaign,
+      true,
+    ),
+    build(
+      "awards_missing_goal",
+      "Awards not linked to a proposal",
+      "The application record a grant came from. Nothing on this page depends on it, but " +
+        "without it the award has no history behind it in Little Green Light.",
+      "advisory",
+      awardsNoGoal,
+      true,
+    ),
+    build(
+      "payments_missing_campaign",
+      "Payments with no campaign",
+      "This dashboard copes — it reaches the campaign by following the payment up to its " +
+        "award — but Little Green Light's own campaign reports do not, and will show less " +
+        "money against the campaign than was actually received.",
+      "advisory",
+      paymentsNoCampaign,
+      true,
+    ),
+  ].filter((e): e is DataQualityException => e !== null);
+}
+
 /** Assemble the Phase 2 grant funnel snapshot. */
 export async function getGrants(env: Env): Promise<GrantSnapshot> {
   const fixture = isFixtureMode(env);
@@ -442,6 +776,7 @@ export async function getGrants(env: Env): Promise<GrantSnapshot> {
         unavailableStage("received", "Received", RECONCILIATION_NOTE),
         unavailableStage("outstanding", "Outstanding", RECONCILIATION_NOTE),
       ],
+      exceptions: [],
       awardsByReimbursable: [],
       unscoped,
       retrievedAt: null,
@@ -453,13 +788,17 @@ export async function getGrants(env: Env): Promise<GrantSnapshot> {
   }
 
   const awards = await readAwards(env);
+  const payments = await readPayments(env);
 
-  const stages: FunnelStage[] = [
-    toStage("pledged", "Pledged", awards, giftAmount),
-    // Both of these come from QuickBooks, not here. See RECONCILIATION_NOTE.
-    unavailableStage("received", "Received", RECONCILIATION_NOTE),
-    unavailableStage("outstanding", "Outstanding", RECONCILIATION_NOTE),
-  ];
+  const pledged = toStage("pledged", "Pledged", awards, giftAmount);
+  const stages: FunnelStage[] = [pledged, ...receivedAndOutstanding(pledged, awards, payments)];
+
+  // Exceptions need both reads to have succeeded to mean anything: a failed
+  // read produces no records, which must not be reported as a clean account.
+  const exceptions =
+    awards.ok && payments?.ok
+      ? await findExceptions(env, awards.items, payments.items)
+      : [];
 
   if (unscoped) {
     for (const stage of stages) {
@@ -473,6 +812,7 @@ export async function getGrants(env: Env): Promise<GrantSnapshot> {
 
   return {
     stages,
+    exceptions,
     awardsByReimbursable: awards.ok ? splitByReimbursable(awards.items) : [],
     unscoped,
     retrievedAt,

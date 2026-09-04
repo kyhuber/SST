@@ -251,3 +251,119 @@ code {
   border-radius: 3px;
   font-size: 0.9em;
 }
+
+/* --- Provisional figures and the data-quality panel (Phase 2) --- */
+
+/*
+ * A provisional figure is a real number the books have not confirmed. It reads
+ * at full size like any other total — hiding it would defeat the point — but
+ * carries a visible flag, because the failure this dashboard exists to prevent
+ * is a caveat that lives somewhere the reader does not look.
+ */
+.status-provisional {
+  border-left: 3px solid var(--warn);
+}
+
+.provisional-flag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--warn);
+  background: var(--warn-bg);
+  border-radius: 3px;
+  padding: 0.15rem 0.4rem;
+  margin: 0.4rem 0 0;
+  display: inline-block;
+}
+
+.dq-list {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 0.9rem;
+}
+
+.dq-card {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.8rem 0.9rem;
+}
+
+/* Blocking items explain a wrong number above; advisory ones do not. The
+   weight difference is deliberate, so blocking items are not diluted. */
+.dq-blocking {
+  border-left: 3px solid var(--error);
+}
+
+.dq-advisory {
+  border-left: 3px solid var(--line);
+}
+
+.dq-card h3 {
+  font-size: 0.95rem;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.dq-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0.1rem 0.35rem;
+}
+
+.dq-blocking .dq-badge {
+  color: var(--error);
+  background: var(--error-bg);
+  border-color: var(--error-bg);
+}
+
+.dq-summary {
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  margin: 0.35rem 0 0;
+}
+
+.dq-records {
+  list-style: none;
+  padding: 0;
+  margin: 0.7rem 0 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.dq-record {
+  border-top: 1px solid var(--line);
+  padding-top: 0.5rem;
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.85rem;
+}
+
+.dq-record-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dq-amount {
+  font-variant-numeric: tabular-nums;
+}
+
+.dq-record-meta {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.dq-record-note {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-style: italic;
+}

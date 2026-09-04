@@ -64,6 +64,21 @@ credentials.
   as total cash.
 - **Record counts appear beside every grant total.** LGL is a partial picture
   during the prototype; a missing grant should show as a count discrepancy.
+- **`provisional` is a distinct status, never a softer `ok`.** A figure
+  computed from LGL that QuickBooks has not confirmed carries the caveat in its
+  status and on the card itself, not in a footnote. Downgrading one to `ok`
+  presents unreconciled data as fact.
+- **Payment records are never filtered by campaign.** They frequently carry
+  `campaign_id = 0` while their award does not. Scope is applied by walking
+  `parent_gift_id` up to an award already known to be in scope. Adding a
+  campaign term to `readPayments` takes live Received from $545,000 to
+  $172,570.29 without erroring.
+- **A record breaking a data-quality rule is excluded from totals and named in
+  the exceptions panel.** Never absorbed, never silently dropped. The panel is
+  product, not error handling: the prototype ships against imperfect data so
+  the gaps become arguable from HPIC's own records.
+- **Zero exceptions must mean "nothing is wrong", never "nothing was read".**
+  `findExceptions` runs only when both reads succeeded.
 
 ## Little Green Light — what the API actually exposes
 
@@ -108,24 +123,29 @@ time if rediscovered the hard way:
   `/gift_types`, there is no `/goals` endpoint, and `gifts/search` returns
   none. You can follow a pointer to one; you cannot enumerate them.
 
-### Received and Outstanding — a decision, no longer a constraint
+### Received and Outstanding — built, and provisional
 
-These render "Not shown" today. The reason recorded on 2026-08-19 — that LGL
-had no amount-due field — **was wrong**, and the entry above supersedes it.
-Amount due is derivable. What replaced the constraint is a judgment call, open
-as `A2` in `KYLE-TODO.md`:
+These now render, computed from the payment records and marked `provisional`.
+Live: **Pledged $1,471,000 · Received $545,000 · Outstanding $926,000.**
 
-    Received     = grant cash received     — LGL payment gifts, or QuickBooks
+The reason they once read "Not shown" — that LGL had no amount-due field —
+**was wrong**, and the entry above supersedes it. Amount due is derivable. What
+replaced that constraint is a judgment call, decided 2026-08-19: **QuickBooks
+is authoritative for cash; the LGL figure is provisional and labelled as
+unreconciled.** It is rendered anyway because the prototype's strategy is to
+expose the gaps and argue from them, which requires showing something.
+
+    Received     = LGL payment gifts today (provisional); QuickBooks eventually
     Outstanding  = Pledged − Received
-    Spent        = expenses booked against the grant — QuickBooks only
+    Spent        = expenses booked against the grant — QuickBooks only, always
 
 **`Spent` is not a choice.** LGL has no concept of an expense, and invoicing a
 funder on a cost-reimbursement award requires knowing what HPIC spent. So
 QuickBooks is load-bearing for Phase 3 however A2 is decided, and LGL can never
 carry the whole funnel.
 
-For `Received` the evidence currently favours QuickBooks, on data quality
-rather than on capability:
+The evidence favouring QuickBooks for `Received` is data quality rather than
+capability, and it is what the exceptions panel now surfaces automatically:
 
 - 3 of 11 payment records carry no `parent_gift_id`, so summing child gifts
   **undercounts** by $7,500 of real grant money.
@@ -259,20 +279,31 @@ Tests use `@cloudflare/vitest-pool-workers`, which needs the `nodejs_compat`
 compatibility flag. It is set in `vitest.config.ts` only — the deployed Worker
 does not need it, and `wrangler.toml` is deliberately left alone.
 
+**`env` in a test carries whatever `wrangler.toml` sets, and that has bitten
+twice.** Adding `LGL_GRANT_*_IDS` turned the "unscoped" tests into scoped ones;
+adding `LGL_UI_BASE_URL` gave a record a link that a test asserted it would not
+have. Both times the test was asserting deployment config rather than
+behaviour. `NO_LGL_CONFIG` in `test/lgl.test.ts` clears every LGL var before
+overrides, so a test constructs the state it is testing. **Add new vars to that
+list even when they are unset in `wrangler.toml`** — the whole point is that a
+future value cannot change what an existing test means.
+
 ## Phase status
 
 - **Phase 1 — funds snapshot: done**, against sandbox data.
-- **Phase 2 — LGL grant funnel: thin slice done, fixture-only.** Worker client,
-  `GET /api/grants`, fixtures, tests, and UI are in. The funnel is Pledged →
-  Received → Outstanding; Pledged computes, and Received and Outstanding are
-  structurally unavailable (see above). Applied was built and then removed on
-  2026-08-18, once Alex confirmed the tool starts at money awarded rather than
-  requested. Still to do: a real `LGL_API_KEY` and a live read, the
-  campaign/fund restriction breakdown, and the pledge detail list.
-- **Phase 3 — phase readiness: not started.** Needs the Dry-in target cost from
-  the general contractor. Note that "spendable excludes unreceived reimbursable
-  awards" depends on the outstanding figure, which now depends on the QuickBooks
-  reconciliation rather than on anything in LGL.
+- **Phase 2 — LGL grant funnel: live, and all three stages render.** Pledged is
+  authoritative; Received and Outstanding are computed from payment records and
+  marked `provisional`, pending the QuickBooks reconciliation. The
+  data-quality panel names every record breaking a rule. Live figures:
+  $1,471,000 / $545,000 / $926,000, with 9 exception records surfaced.
+  Applied was built and removed on 2026-08-18, once Alex confirmed the tool
+  starts at money awarded rather than requested. Still to do: the campaign/fund
+  restriction breakdown and the pledge detail list.
+- **Phase 3 — phase readiness: not started, and deliberately blocked.** Needs
+  the Dry-in target cost from the GC, *and* both an authoritative Received and
+  the `reimbursable` flag — unknown on all 10 awards today, which the panel
+  now reports as a blocking exception. This is the one figure where being wrong
+  costs real money, so it waits for both rather than shipping provisionally.
 
 ## Hosting, and where it is going
 

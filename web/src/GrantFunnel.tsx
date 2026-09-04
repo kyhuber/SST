@@ -6,26 +6,46 @@
  * (confirmed with Alex, 2026-08-14) — their absence is a decision rather than
  * an unbuilt stage.
  *
- * Two of the three render as "Not shown" against live data, and that is also
- * intended rather than an unfinished panel. Received and Outstanding are cash
- * facts reconciled against QuickBooks, not figures Little Green Light is asked
- * for, and that reconciliation is not built yet. The stage carries the reason
- * with it, so the board reads why a figure is missing instead of wondering
- * whether it is zero.
+ * Received and Outstanding render as **provisional**, which is a deliberate
+ * third state rather than a softer "ok". They are computed from Little Green
+ * Light's payment records, and QuickBooks — not LGL — is the system of record
+ * for cash. Marking them provisional lets the board see a useful figure during
+ * the prototype without ever reading it as reconciled.
+ *
+ * What makes that honest is the data-quality panel below them. Every record
+ * breaking a rule is named, counted in dollars, and linked, and no such record
+ * is ever absorbed into a total. The panel is the product, not error handling:
+ * the prototype ships against imperfect data so that the gaps become visible
+ * and arguable from HPIC's own records.
  */
 
 import { formatRetrievedAt, recordCountLabel, usd } from "./format";
-import type { FunnelStage, GrantSnapshot, ReimbursableBucket } from "./types";
+import type {
+  DataQualityException,
+  DataQualityRecord,
+  FunnelStage,
+  GrantSnapshot,
+  ReimbursableBucket,
+} from "./types";
 
 function StageCard({ stage }: { stage: FunnelStage }) {
+  const hasAmount = stage.status !== "unavailable" && stage.amount !== null;
   return (
     <section className={`card status-${stage.status}`}>
       <h2>{stage.label}</h2>
-      {stage.status === "ok" ? (
+      {hasAmount ? (
         <p className="amount">{usd.format(stage.amount ?? 0)}</p>
       ) : (
         <p className="amount unavailable">Not shown</p>
       )}
+      {/*
+        Shown as a badge on the figure itself, not only in the note. A reader
+        scanning the numbers has to see that the books have not confirmed this
+        one without stopping to read a paragraph.
+      */}
+      {stage.status === "provisional" ? (
+        <p className="provisional-flag">Provisional — not reconciled to the books</p>
+      ) : null}
       {/*
         The count appears with every total, never on its own. LGL is a partial
         picture during the prototype: a grant nobody entered shows up here as a
@@ -46,6 +66,98 @@ function ReimbursableRow({ bucket }: { bucket: ReimbursableBucket }) {
       <td className="num">{usd.format(bucket.amount)}</td>
       <td className="num muted-cell">{recordCountLabel(bucket.recordCount)}</td>
     </tr>
+  );
+}
+
+function ExceptionRecordRow({ record }: { record: DataQualityRecord }) {
+  return (
+    <li className="dq-record">
+      <span className="dq-record-head">
+        <strong>{record.who ?? `Record ${record.id}`}</strong>
+        {record.amount !== null ? <span className="dq-amount">{usd.format(record.amount)}</span> : null}
+      </span>
+      <span className="dq-record-meta">
+        {record.date ? <span>{record.date}</span> : null}
+        {record.url ? (
+          <a href={record.url} target="_blank" rel="noreferrer">
+            Open in Little Green Light
+          </a>
+        ) : (
+          <span className="muted-cell">gift {record.id}</span>
+        )}
+      </span>
+      {/* The note is usually what actually identifies the money. */}
+      {record.note ? <span className="dq-record-note">“{record.note}”</span> : null}
+    </li>
+  );
+}
+
+function ExceptionCard({ exception }: { exception: DataQualityException }) {
+  const hidden = exception.recordCount - exception.records.length;
+  return (
+    <section className={`dq-card dq-${exception.severity}`}>
+      <h3>
+        {exception.label}
+        <span className="dq-badge">
+          {exception.severity === "blocking" ? "Affects a figure above" : "Advisory"}
+        </span>
+      </h3>
+      <p className="dq-summary">
+        <strong>{recordCountLabel(exception.recordCount)}</strong>
+        {exception.amount !== null ? <> · {usd.format(exception.amount)}</> : null}
+      </p>
+      <p className="note">{exception.detail}</p>
+      <ul className="dq-records">
+        {exception.records.map((record) => (
+          <ExceptionRecordRow key={record.id} record={record} />
+        ))}
+      </ul>
+      {hidden > 0 ? <p className="note">And {hidden} more not listed here.</p> : null}
+    </section>
+  );
+}
+
+/**
+ * The data-quality panel.
+ *
+ * Rendered only when something is wrong. An empty state congratulating the
+ * reader would be noise, and worse, would look identical to a page where
+ * nothing was checked.
+ */
+function DataQualityPanel({ exceptions }: { exceptions: DataQualityException[] }) {
+  if (exceptions.length === 0) return null;
+
+  const blocking = exceptions.filter((e) => e.severity === "blocking");
+  return (
+    <div className="subpanel">
+      <h2>Data quality</h2>
+      <p className="note">
+        Records that break a rule the figures above depend on. Items marked{" "}
+        <strong>Affects a figure above</strong> are why a number is missing, provisional, or
+        lower than it should be — each one is excluded from the totals rather than guessed
+        at. Fixing a record in Little Green Light changes this page on the next read.
+      </p>
+      {blocking.length > 0 ? (
+        <p className="banner banner-warn">
+          <strong>
+            {blocking.reduce((sum, e) => sum + e.recordCount, 0)} record(s) are affecting the
+            figures above.
+          </strong>{" "}
+          The grant totals on this page cannot be treated as complete until these are
+          resolved.
+        </p>
+      ) : null}
+      <div className="dq-list">
+        {exceptions.map((exception) => (
+          <ExceptionCard key={exception.key} exception={exception} />
+        ))}
+      </div>
+      <p className="note">
+        This checks what can be checked automatically. It cannot tell whether money in a
+        grant category is really a grant — a fee-for-service payment filed as one looks
+        identical here — so the category itself still needs a human eye.
+      </p>
+    </div>
   );
 }
 
@@ -90,6 +202,8 @@ export function GrantFunnelView({ snapshot }: { snapshot: GrantSnapshot }) {
           <StageCard key={stage.key} stage={stage} />
         ))}
       </div>
+
+      <DataQualityPanel exceptions={snapshot.exceptions} />
 
       {snapshot.awardsByReimbursable.length > 0 ? (
         <div className="subpanel">

@@ -102,3 +102,13 @@ LGL_MODE = "live"
 # walking parent_gift_id up to the pledge instead.
 LGL_GRANT_CAMPAIGN_IDS = "871"
 LGL_GRANT_GIFT_CATEGORY_IDS = "6031"
+
+# Where grant *payments* live — the other category that displays as "Grant".
+# Unset means Received cannot be computed and renders unavailable rather than
+# zero, so this is required for the funnel to show anything past Pledged.
+LGL_GRANT_PAYMENT_CATEGORY_IDS = "6076"
+
+# Tenant URL, used only to deep-link the records named in the data-quality
+# panel so they can be opened and fixed. Not a secret and not required; unset
+# just means the panel lists record IDs without links.
+LGL_UI_BASE_URL = "https://hpic.littlegreenlight.com"
