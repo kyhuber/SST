@@ -75,19 +75,21 @@ project with no deadline.
 
 ## Then — the live LGL cutover
 
-- [ ] **D. Scope the funnel, flip to live, deploy once.**
-      **No longer blocked by A.** The fear was publishing $1,471,000 as cash in
-      hand; the code labels it Pledged, which is correct, and leaves Received
-      and Outstanding unavailable. Going live now is honest whatever Alex says
-      about A2 — his answer changes what gets *added*, not whether Pledged is
-      right. All the values are verified and recorded below. In `worker/wrangler.toml`:
-      uncomment `LGL_GRANT_CAMPAIGN_IDS = "871"` and
-      `LGL_GRANT_GIFT_CATEGORY_IDS = "6031"`, change `LGL_MODE` to `"live"`,
-      commit, then `npx wrangler deploy` from `worker/`.
+- [x] **D. Scope the funnel, flip to live, deploy once. — DONE 2026-08-19**
+      (`a8d2903`). `LGL_MODE = "live"`, scoped to campaign 871 and category
+      6031, deployed as version `7e381f25`. The bindings came back as expected
+      and `/api/grants` still answers 401 without the passphrase, so the auth
+      boundary survived.
 
-      Deliberately one deploy rather than two: going live unscoped would count
-      individual donor pledges alongside grants. It says so in a banner, but the
-      banner is avoidable.
+      Flipping the config broke three tests, usefully: `liveEnv` and
+      `fixtureEnv` spread the wrangler-derived env, so the tests asserting
+      *unscoped* behaviour inherited the new scope and began asserting the
+      opposite of what they were written for. Both helpers now clear the scope
+      before applying overrides.
+
+      **Still worth eyeballing on the dashboard:** Pledged should read
+      $1,471,000 across 6 records, with Received and Outstanding showing "Not
+      shown" and no unscoped banner.
 
 ## Phase 2 — the open decision
 
