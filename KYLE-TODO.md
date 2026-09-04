@@ -57,9 +57,12 @@ project with no deadline.
       cost-reimbursement funder requires knowing what HPIC spent, and spending
       exists only in QuickBooks. This decision is about Received only.
 
-      Also worth asking in the same breath: pledge 906602 ($38,000) is entered
-      as an award, but its Goal note reads "Application Year 2025, decision
-      anticipated April 2026." Awarded, or still pending?
+      Two pieces of evidence gathered 2026-08-19 that bear on the answer:
+      payment records are frequently unlinked (3 of 11, $10,500) and the
+      category holding them contains non-grant fee-for-service activity; and a
+      record note reads *"This coding matches Quickbooks record"*, so the
+      bookkeeping already treats QuickBooks as authoritative. Both point away
+      from LGL as the cash source, but it is Alex's call.
 
 - [x] **B. Re-set the LGL API key as a Worker secret. — DONE 2026-08-19.**
       The `wrangler secret put` failed first with "the latest version of your
@@ -200,9 +203,16 @@ regenerates the scope IDs; the payment tree below came from following
 
 | Level | Type | Category | Holds |
 | --- | --- | --- | --- |
-| Goal | 14 | Grant Proposal | the application; **no amount exposed** (`null`) |
-| Pledge | 7 | Grant | the award; `received_amount` = face amount |
-| Gift | 1 | Grant | actual cash, linked by `parent_gift_id` |
+| Goal | 14 | 6051 "Grant Proposal" | the application; **no amount exposed** (`null`) |
+| Pledge | 7 | **6031** "Grant" | the award; `received_amount` = face amount |
+| Gift | 1 | **6076** "Grant" | actual cash, linked by `parent_gift_id` |
+
+**Awards and payments sit in two different categories that share the display
+name "Grant".** 6031 holds awards, 6076 holds payments. `categories=in|6031`
+returns pledges only — correct for Pledged, and wrong for anything computing
+Received, which must read 6076 too. Since the gift-categories endpoint returns
+blank names, the two are indistinguishable from that list; they were told apart
+only by reading `gift_category_id` off known records.
 
 ```
 pledge 903691   $485,000   <- $279,573.79 + $92,855.92 + $112,570.29   due $0
@@ -219,6 +229,21 @@ Pledged $1,471,000     Received $545,000     Outstanding $926,000
 stamped at entry and equal `received_amount` on every record, including awards
 with no payment against them at all. Reading them as cash overstates by
 $926,000.
+
+**Payment linkage is not reliable, either.** Of 11 records in category 6076,
+3 have no `parent_gift_id` at all, totalling $10,500 — and two of those are
+not grants: $1,500 twice for a 2025 compost event, recoded from
+Fee-for-Service. So summing child gifts undercounts, and the category itself
+contains non-grant activity. One of those notes reads *"This coding matches
+Quickbooks record"* — somebody is already retrofitting LGL by hand to agree
+with the books, which is worth weighing in A2.
+
+**A Goal's note is not a status signal.** Pledge 906602 ($38,000) hangs off a
+Goal noted "decision anticipated April 2026", yet the award landed 2025-12-04
+and has a signed OAC Grant Agreement; the note was simply never updated after
+the decision came in. Read the structure instead — a type-7 pledge means
+awarded, a child type-1 gift means cash arrived. (Confirmed with Kyle in the
+LGL UI, 2026-08-19.)
 
 Note the gift-categories endpoint returns **blank names**, so `6031` was
 identified from the `gift_category_name` on real pledges rather than from that
