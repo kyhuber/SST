@@ -74,34 +74,85 @@ read this before touching `worker/src/lgl.ts`:
 | Spec says | API actually has |
 | --- | --- |
 | `Pledge` object | No `/pledges` endpoint. An award is a **gift whose `gift_type` is "Pledge"** — the stock gift category "Grant" sits under exactly that type. |
-| Pledge `amount due` | **Does not exist.** The strings `amount_due` and `balance` appear nowhere in the API docs. No longer load-bearing — see below. |
+| Pledge `amount due` | Not a field, but **derivable**: award amount − sum of the payment gifts hanging off it. The LGL UI shows it; the API makes you compute it. |
 
-**Received and Outstanding render "Not shown" today, but do not go looking for
-an LGL field to fix that.** As of 2026-08-19 they are no longer defined in terms
-of LGL at all. They are cash facts, and QuickBooks is the system of record for
-cash:
+### The grant lifecycle — three gift records, verified 2026-08-19
 
-    Received     = grant cash actually deposited, per QuickBooks
-    Outstanding  = Pledged (LGL) − Received (QuickBooks)
-    Spent        = expenses booked against the grant, per QuickBooks
+A grant is not one record. It is a chain, and each link is a gift of a
+different type in a different category:
 
-The reimbursement case is what settles it: invoicing a funder on a
-cost-reimbursement award requires knowing what HPIC **spent**, and spending
-exists only in QuickBooks. So asking LGL support about a balance field was
-dropped as the wrong question, not deferred.
+| Stage | Type | Category | Carries |
+| --- | --- | --- | --- |
+| Application | 14 "Goal" | 6051 "Grant Proposal" (6102 "Public Funding" on one) | **no amount at all** — `received_amount` is `null` |
+| Award | 7 "Pledge" | **6031** "Grant" | `received_amount` = award face value |
+| Payment | 1 "Gift" | **6076** "Grant" | `received_amount` = cash actually received |
 
-The real prerequisite is a **bookkeeping practice**: QuickBooks must carry a
-dimension — class, customer, or project — that ties a deposit or expense to a
-specific grant, applied consistently at entry time. Nothing in `worker/src/qbo.ts`
-reads any such dimension today; it reads Account entities and book balances
-only. (The `Classification` field there is the account-type filter for `Asset`,
-not a QuickBooks Class.)
+Each links upward by `parent_gift_id`. Four properties of this shape cost real
+time if rediscovered the hard way:
 
-**Open decision, make it before building:** what ties a QuickBooks class to an
-LGL award — a naming convention, a customer/project per grant, or an explicit
-mapping in Worker config. And the Phase 1 completeness rule governs: a deposit
-coded to no class is invisible, so incomplete attribution renders unavailable
-rather than quietly low.
+- **`received_amount` on a Pledge is the award, not cash.** So is
+  `deposited_amount`, which is stamped at entry and equals `received_amount` on
+  every award — including ones with no payment against them at all. Reading
+  those as cash overstates by $926,000 against live data.
+- **6031 and 6076 both display as "Grant".** Awards are in one, payments in the
+  other, and `/gift_categories` returns blank names, so they cannot be told
+  apart by listing them. They were distinguished only by reading
+  `gift_category_id` off records already known to be payments.
+- **Payments often do not carry their award's campaign.** Three of eleven have
+  `campaign_id = 0`, including two of the three payments against the $485,000
+  Commerce award. Scoping payments by `campaigns=in|871` the way awards are
+  scoped returns $112,570.29 of that $485,000 and silently drops $372,429.71.
+  **Reach the campaign by walking `parent_gift_id` up to the pledge; never
+  filter payment records by campaign.**
+- **Goals are dereferenceable, not discoverable.** Type 14 is absent from
+  `/gift_types`, there is no `/goals` endpoint, and `gifts/search` returns
+  none. You can follow a pointer to one; you cannot enumerate them.
+
+### Received and Outstanding — a decision, no longer a constraint
+
+These render "Not shown" today. The reason recorded on 2026-08-19 — that LGL
+had no amount-due field — **was wrong**, and the entry above supersedes it.
+Amount due is derivable. What replaced the constraint is a judgment call, open
+as `A2` in `KYLE-TODO.md`:
+
+    Received     = grant cash received     — LGL payment gifts, or QuickBooks
+    Outstanding  = Pledged − Received
+    Spent        = expenses booked against the grant — QuickBooks only
+
+**`Spent` is not a choice.** LGL has no concept of an expense, and invoicing a
+funder on a cost-reimbursement award requires knowing what HPIC spent. So
+QuickBooks is load-bearing for Phase 3 however A2 is decided, and LGL can never
+carry the whole funnel.
+
+For `Received` the evidence currently favours QuickBooks, on data quality
+rather than on capability:
+
+- 3 of 11 payment records carry no `parent_gift_id`, so summing child gifts
+  **undercounts** by $7,500 of real grant money.
+- Two of those three are a fee-for-service compost event recoded into the Grant
+  category, so reading the category flat **overcounts** by $3,000.
+- One of those notes says the recoding was done so the record matches the
+  QuickBooks entry — the bookkeeping already treats QuickBooks as authoritative.
+- 0 of 10 awards carry any custom field, so `reimbursable` is unknown for every
+  award, and Phase 3's "spendable excludes unreceived reimbursable awards" is
+  unbuildable until that changes.
+
+If LGL is chosen instead, the prerequisites are: every payment linked to its
+award, 6076 kept free of non-grant income, custom fields defined on Pledge, and
+award status held in a field rather than a freetext note (the Goal note on the
+$38,000 OAC award still says a decision was anticipated April 2026, months
+after the award landed). LGL's `Installment` type (13) exists and is unused —
+worth checking whether it enforces the payment-to-award link that hand-entered
+type-1 gifts do not.
+
+Choosing QuickBooks instead needs a **bookkeeping practice**: QuickBooks must
+carry a dimension — class, customer, or project — that ties a deposit or
+expense to a specific grant, applied at entry time. Nothing in
+`worker/src/qbo.ts` reads any such dimension today; it reads Account entities
+and book balances only. (The `Classification` field there is the account-type
+filter for `Asset`, not a QuickBooks Class.) The Phase 1 completeness rule
+governs either way: a deposit attributable to no grant is invisible, so
+incomplete attribution renders unavailable rather than quietly low.
 
 Two more things that matter:
 

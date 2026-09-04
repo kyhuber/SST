@@ -93,5 +93,12 @@ LGL_MODE = "live"
 # them. Nothing reads 6076 today because Received is not computed from LGL;
 # anything that starts computing it must add 6076 here and cannot assume the
 # name is enough to identify it.
+#
+# And a trap for whoever adds it: DO NOT scope payment records by campaign the
+# way awards are scoped here. Payments frequently carry campaign_id = 0 even
+# when their award is in 871 — two of the three payments against the $485,000
+# Commerce award do. Filtering payments by campaigns=in|871 returns $112,570.29
+# of that $485,000 and silently drops $372,429.71. Reach the campaign by
+# walking parent_gift_id up to the pledge instead.
 LGL_GRANT_CAMPAIGN_IDS = "871"
 LGL_GRANT_GIFT_CATEGORY_IDS = "6031"
