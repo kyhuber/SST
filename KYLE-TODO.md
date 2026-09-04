@@ -1,7 +1,9 @@
 # Kyle's to-do
 
 The standing list of work that only a human can do — anything needing a login,
-a DNS record, an approval, or a conversation with another person.
+a DNS record, an approval, or a conversation with another person — **plus the
+current build plan**, so the two stay visible against each other. Items marked
+*(Claude)* are code; everything else is Kyle's.
 
 **Read this first when starting a session.** Claude keeps it current; ask it to
 tick items off and add new ones as decisions get made. Detailed click-by-click
@@ -12,7 +14,61 @@ project with no deadline.
 
 ---
 
-## Start here tomorrow
+## Start here — the prototype build
+
+Ordered so each step produces something demonstrable. The governing idea, which
+is Kyle's and worth stating because it shapes every choice under it: **ship the
+product first and let it expose the data gaps, then use that evidence to
+introduce the rules.** Volunteers do not adopt a data-entry standard for a
+system whose output they have never seen. The dashboard's job is to make the
+cost of a missing link visible in dollars.
+
+That only works if the product never launders a gap into a clean number, which
+is exactly what the existing invariants already enforce. Launching on imperfect
+data is not a compromise of "an honest unavailable beats a clean number hiding
+a caveat" — it is that rule doing its job.
+
+- [ ] **P1. Render Received and Outstanding provisionally from LGL.** *(Claude)*
+      Walk `parent_gift_id` from each payment up to its award — never filter
+      payments by campaign, which drops $372,429 of the Commerce award (see the
+      reference section). Label the figures **"per LGL, not reconciled to the
+      books"** and never present them as cash confirmed.
+
+      Live data gives Received $545,000 and Outstanding $926,000, so this is a
+      real demo rather than an empty frame.
+
+- [ ] **P2. Build the data-quality panel — the piece that makes the strategy
+      work.** *(Claude)* Today Received says "Not shown", which is honest and inert. It
+      needs to say *what is wrong and which records*:
+
+      > **Received — provisional.** 3 payments totalling $10,500 are not linked
+      > to an award: Office of Arts & Culture $7,500 (Jan 2025), Seattle Public
+      > Utilities $1,500 (May 2025) and $1,500 (May 2026).
+
+      That turns a report into a worklist, and the governance rules then write
+      themselves from the exception list. It also means the board is looking at
+      their own records rather than at Kyle's opinion of their processes.
+
+      The panel should surface, at minimum: payments with no parent award,
+      awards with no campaign, non-grant income sitting in category 6076,
+      awards missing `reimbursable`, and — once P3 lands — QuickBooks
+      transactions carrying no grant class.
+
+- [ ] **P3. Add the QuickBooks grant dimension for Received and Spent.**
+      *(Claude, once the classes exist)*
+      Spec in item 0. Blocked on the bookkeeping practice existing, not on
+      code. Until then these render unavailable with the reason, sitting beside
+      the provisional LGL figures — **and that contrast is the argument for
+      making the change.**
+
+- [ ] **P4. Phase 3 stays blocked, deliberately.** "Spendable excludes
+      unreceived reimbursable awards" needs authoritative Received *and* the
+      `reimbursable` flag, which is unknown on all 10 awards. This is the one
+      figure where being wrong costs real money, so it waits for both. The
+      Dry-in target cost from the GC is still outstanding regardless.
+
+
+## Answered — what had been blocking the cutover
 
 - [x] **A. Settle what "deposited" means on a grant pledge in LGL. — ANSWERED
       2026-08-19, and the answer was the dangerous one.**
@@ -41,28 +97,10 @@ project with no deadline.
       labels the total Pledged, which is correct; Received and Outstanding
       render "Not shown". The $1,471,000 was never presented as cash.
 
-- [ ] **A2. Ask Alex whether Received should come from LGL or QuickBooks.**
-      The factual question in A is closed, but it overturns a premise. CLAUDE.md
-      and item 0 both say Received and Outstanding must come from QuickBooks
-      *because LGL has no amount-due field*. LGL does have the answer after all,
-      via child gifts. So the choice is now a judgment call about which system
-      the board treats as authoritative for cash:
+- [x] **A2. Decide where Received comes from. — DECIDED 2026-08-19: QuickBooks
+      is authoritative, LGL is provisional.** Reasoning below under item 0.
 
-      - **LGL** — works today, no new bookkeeping. Correct only if whoever
-        enters grants records every payment as it arrives.
-      - **QuickBooks** — genuinely authoritative for cash, but needs the class
-        or customer discipline in item 0, which does not exist today.
-
-      Note the reasoning still holds unchanged for **Spent**: invoicing a
-      cost-reimbursement funder requires knowing what HPIC spent, and spending
-      exists only in QuickBooks. This decision is about Received only.
-
-      Two pieces of evidence gathered 2026-08-19 that bear on the answer:
-      payment records are frequently unlinked (3 of 11, $10,500) and the
-      category holding them contains non-grant fee-for-service activity; and a
-      record note reads *"This coding matches Quickbooks record"*, so the
-      bookkeeping already treats QuickBooks as authoritative. Both point away
-      from LGL as the cash source, but it is Alex's call.
+## Housekeeping, already done
 
 - [x] **B. Re-set the LGL API key as a Worker secret. — DONE 2026-08-19.**
       The `wrangler secret put` failed first with "the latest version of your
@@ -72,8 +110,6 @@ project with no deadline.
       bracketed — every live read authenticated fine.
 - [x] **C. Push the two local commits. — DONE.** `main` and `origin/main` are
       both at `3c5793b`; nothing is outstanding.
-
-## Then — the live LGL cutover
 
 - [x] **D. Scope the funnel, flip to live, deploy once. — DONE 2026-08-19**
       (`a8d2903`). `LGL_MODE = "live"`, scoped to campaign 871 and category
@@ -91,32 +127,92 @@ project with no deadline.
       $1,471,000 across 6 records, with Received and Outstanding showing "Not
       shown" and no unscoped banner.
 
-## Phase 2 — the open decision
+## Phase 2 — the data structure, as recommended
 
-- [ ] **0. Decide what ties a QuickBooks class to an LGL award.**
-      This replaces the old "ask LGL support about a pledge balance" item, which
-      was dropped on 2026-08-19 as the wrong question. Received and Outstanding
-      are cash facts and QuickBooks is the system of record for cash, so they
-      are reconciled from QuickBooks rather than read from LGL. The reimbursement
-      case settles it: invoicing a funder on a cost-reimbursement award requires
-      knowing what HPIC **spent**, and spending exists only in QuickBooks.
+- [ ] **0. Stand up one QuickBooks Class per grant award.**
+      This replaces the old "decide what ties a class to an award" item. The
+      recommendation below is Claude's; it is written as a spec rather than as
+      options because Kyle asked for an opinion to build against.
 
-      What is needed is a bookkeeping practice — QuickBooks carrying a class,
-      customer, or project that identifies the grant, applied consistently at
-      entry time. The decision to make first is which of those, and how it maps
-      to an LGL award: a naming convention, one customer or project per grant,
-      or an explicit mapping in Worker config.
+      **Why QuickBooks for both Received and Spent, not just Spent.** Spent has
+      no alternative — LGL has no concept of an expense, and invoicing a
+      cost-reimbursement funder requires knowing what HPIC spent. Once a grant
+      dimension exists in QuickBooks for expenses, the *same* dimension gives
+      Received for free: a grant deposit coded to it. Sourcing Received from
+      LGL instead means maintaining two parallel attribution systems and
+      reconciling them forever. One dimension, one rule for whoever enters a
+      transaction.
 
-      **Check LGL's own QuickBooks sync before designing a convention by hand.**
-      Every record carries `auto_sync_to_qbo`, and it is `false` everywhere. If
-      turning it on establishes a native link between an LGL gift and a
-      QuickBooks entry, that is a better key than anything maintained manually.
-      Worth an hour of investigation before committing to an approach.
+      **Why Class rather than Customer or Project.** Class is the one field
+      that behaves identically on a deposit and on an expense, so the rule is
+      symmetric and takes one sentence to teach: *every grant deposit and every
+      grant-funded expense carries the grant's class.* Customer/Project is more
+      powerful — QuickBooks Projects gives a per-grant P&L, and billable
+      expenses model cost-reimbursement natively — but it asks a volunteer
+      bookkeeper to put a "customer" on an expense, which reliably does not
+      happen. **Revisit Projects if and when reimbursement invoicing moves into
+      QuickBooks;** class-per-grant does not preclude adding it later.
 
-      This is yours because it is a process change, not code. Everything
-      downstream depends on the key being applied the same way every time, and a
-      deposit coded to no class is invisible to the reconciliation — which by
-      this project's own rule must render as unavailable, not as a low number.
+      **How a class ties to an LGL award: an explicit map in Worker config,
+      keyed by LGL gift id.** Not a naming convention. A convention is a string
+      match, so renaming or mistyping a class in QuickBooks silently detaches
+      the grant and a number quietly drops — the exact failure this tool
+      exists to prevent. An explicit map fails loudly instead: a mapped grant
+      whose class has vanished renders unavailable, and a class with no mapping
+      is reported as unattributed. With ~10 grants the map is trivial, and
+      needing a deploy to add one is a feature rather than a cost — it makes
+      adding a grant a deliberate act.
+
+      If the grant count ever outgrows that, move the key into the class name
+      (`Grant 903691 — Commerce BFA`) and parse it, keeping the loud-failure
+      property. Do not switch to matching on funder name.
+
+      **The completeness rule, which is not optional:**
+
+      - Per-grant Received and Spent render from that grant's class.
+      - Deposits and expenses in the rebuild accounts carrying **no** grant
+        class are an *unattributed pool*, surfaced with a count and a total.
+        They are never absorbed into a grant and never silently dropped.
+      - The roll-up "total grant cash received" renders **only when the
+        unattributed pool is empty**, exactly as total cash renders only when
+        every account reads successfully. An unattributed deposit might belong
+        to any grant, so a roll-up computed over an incomplete attribution is a
+        number hiding a caveat.
+
+      **What Kyle needs to do before P3 can be built:** create the classes,
+      apply them going forward, and decide whether to backfill history. The
+      code cannot proceed without at least one grant coded end to end.
+
+## The LGL rules to introduce — Claude's recommendation
+
+Not a to-do so much as the standard to hold records to, and the thing P2's
+panel should measure against. Ordered by how much breaks without it.
+
+1. **Every payment links to its award** via `parent_gift_id`. This is the only
+   genuinely load-bearing rule; 3 of 11 payments violate it today.
+2. **Every award exists in LGL**, including historical ones. The $7,500 Arts &
+   Culture payment references a 2025 CARE award that is not in the system at
+   all — the only CARE record is a $3,400 pledge for 2026.
+3. **Category 6076 holds grant payments only.** Two Seattle Public Utilities
+   compost-event fee-for-service records sit there today. **Do not "fix" these
+   unilaterally** — a note on one says it was coded that way deliberately to
+   match the QuickBooks record, so changing it back would break an agreement
+   someone made on purpose. That one is a conversation with Galen.
+4. **Custom fields on Pledge: `reimbursable` and `contract_signed`.** Zero
+   awards carry any custom field, so reimbursable is unknown on all 10 and
+   Phase 3 is unbuildable. Purely additive to define, so this is the cheapest
+   high-value change available.
+5. **Award status lives in a field, not a note.** The Goal note on the $38,000
+   OAC award still says a decision was anticipated April 2026, months after the
+   award landed and was signed.
+6. **Campaign on awards is required; on payments it is optional.** The
+   dashboard reaches the campaign by walking to the award, so payments do not
+   need it — but LGL's own campaign reports miss $372,429 of Commerce money
+   without it, which is the honest reason to ask for it.
+
+Worth investigating once: **LGL's `Installment` gift type (13) exists and is
+unused.** If it enforces the payment-to-award link that hand-entered type-1
+gifts do not, rule 1 becomes structural instead of a habit.
 
 ## Next up — hosting and the org
 
@@ -144,7 +240,9 @@ project with no deadline.
       *populated* — it does not say whether Pledge *supports* them. If it does,
       define `reimbursable` and `contract_signed`; if it does not, say so. The
       build renders "unknown" either way, so this changes what go-live looks
-      like rather than whether anything works.
+      like rather than whether anything works. **This is rule 4 of the LGL
+      rules above, and the cheapest high-value change available** — defining a
+      custom field is purely additive and unblocks Phase 3.
       → `docs/runbook-migration.md` §5
 
 ## Before QuickBooks production keys
@@ -168,6 +266,13 @@ Not yours to do, but worth tracking so the wait is visible.
 - [ ] **Development committee** — reconcile manually tracked grants into LGL.
       Until this happens, grant figures reflect what is in LGL, not a complete
       grant history, and the UI must say so.
+
+      **First concrete instance, found 2026-08-19:** the $7,500 Office of Arts
+      & Culture payment (gift 906707) is noted as an "Addition to 2025 CARE
+      grant award", but **no 2025 CARE award exists in LGL** — the only CARE
+      record is a $3,400 pledge for 2026. So this is a missing award record
+      rather than a missing link, and it is the kind of gap P2's panel is meant
+      to surface automatically instead of by hand.
 - [ ] **General contractor** — the Dry-in target cost. Phase 3 cannot start
       without it.
 
@@ -302,6 +407,25 @@ Kept here so they are not re-litigated from memory.
   neither is this tool's job. (Alex, 2026-08-14)
 - **The funnel starts at Pledged structurally, not by convention.** `readAwards`
   filters `gift_types=in|7`, so nothing else can enter it.
+- **Ship the product first, then introduce the rules.** Governance-first fails
+  with volunteers: nobody adopts a data-entry standard for a system whose
+  output they have never seen. The dashboard makes the cost of a missing link
+  visible in dollars, which is an argument no policy memo makes as well. This
+  is safe only because the invariants refuse to launder a gap into a clean
+  number — launching on imperfect data exercises that rule rather than bending
+  it. (Kyle, with board backing, 2026-08-19.)
+- **QuickBooks is authoritative for Received as well as Spent; LGL Received is
+  provisional and labelled as such.** Spent has no alternative, and once a
+  grant dimension exists in QuickBooks the same dimension answers Received.
+  Sourcing Received from LGL instead would mean maintaining two attribution
+  systems forever. Showing both — provisional beside unavailable — is itself
+  the argument for the bookkeeping change. (2026-08-19, superseding the
+  2026-08-19 note below, which was reasoning from a premise since disproved.)
+- **One QuickBooks Class per grant award, mapped to LGL gift ids in Worker
+  config.** Class because it is the one field that behaves the same on a
+  deposit and an expense; explicit map because a naming convention detaches
+  silently when someone renames a class, and silent is the one failure mode
+  this tool exists to prevent.
 - **Received and Outstanding come from QuickBooks, not LGL.** LGL is
   authoritative for what was awarded; QuickBooks is authoritative for cash
   received and money spent. Asking LGL for an amount-due field was the wrong
